@@ -36,6 +36,10 @@ object DockOptions {
 fun List<DockChoice>.labelFor(code: Int): String =
     firstOrNull { it.code == code }?.label ?: "Other ($code)"
 
+/** Whether the trip-count picker may write [washInterval]; outside 1-3 its meaning is not known. */
+fun washFrequencyEditable(washInterval: Int?): Boolean =
+    washInterval == null || washInterval in 1..DockOptions.washFrequency.size
+
 /**
  * The label for the mop wash frequency. [washInterval] is the robot's raw `wash_interval`; a Qrevo
  * reports 1200 where older docks report 1-3, and that must not be mistaken for "every trip".

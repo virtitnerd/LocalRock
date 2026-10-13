@@ -100,6 +100,7 @@ import com.kodraliu.localrock.shared.vacuum.DockOptions
 import com.kodraliu.localrock.shared.vacuum.DockSettings
 import com.kodraliu.localrock.shared.vacuum.RobotSettings
 import com.kodraliu.localrock.shared.vacuum.labelFor
+import com.kodraliu.localrock.shared.vacuum.washFrequencyEditable
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.ui.AppColors
@@ -874,7 +875,9 @@ private fun DockSettingsScreen(
                     iconTint = AppColors.Water,
                     title = "Mop Wash Freq",
                     value = washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval),
-                    onClick = { dialogTarget = "wash_freq" },
+                    // The trip counts are written as wash_interval 1-3; on a dock reporting something
+                    // else (a Qrevo's 1200) that would overwrite a value we don't understand.
+                    onClick = { if (washFrequencyEditable(dockSettings.washInterval)) dialogTarget = "wash_freq" },
                 )
                 DockSettingCard(
                     modifier = Modifier.weight(1f),

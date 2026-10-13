@@ -48,6 +48,14 @@ class DockOptionsTest {
     }
 
     @Test
+    fun the_trip_count_picker_only_writes_where_the_interval_is_a_trip_count() {
+        assertEquals(true, washFrequencyEditable(null))
+        assertEquals(true, washFrequencyEditable(2))
+        assertEquals(false, washFrequencyEditable(1200))
+        assertEquals(false, washFrequencyEditable(0))
+    }
+
+    @Test
     fun answers_are_read_whether_the_robot_wraps_them_in_a_list_or_not() {
         // Both shapes occur; python-roborock unwraps either.
         val bare = Json.parseToJsonElement("""{"mode":4}""").asAnswerObject()

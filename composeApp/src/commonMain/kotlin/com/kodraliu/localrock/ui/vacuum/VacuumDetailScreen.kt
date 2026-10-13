@@ -151,6 +151,7 @@ import com.kodraliu.localrock.shared.vacuum.isSmartModeSet
 import com.kodraliu.localrock.shared.vacuum.labelFor
 import com.kodraliu.localrock.shared.vacuum.mapNameBlocker
 import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
+import com.kodraliu.localrock.shared.vacuum.washFrequencyEditable
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapRoom
@@ -1621,7 +1622,10 @@ private fun DockSettingsTab(
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DockSettingCard(Modifier.weight(1f), Icons.Default.Repeat, AppColors.Water, "Mop wash frequency", washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval)) { dialogTarget = "wash_freq" }
+            DockSettingCard(Modifier.weight(1f), Icons.Default.Repeat, AppColors.Water, "Mop wash frequency", washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval)) {
+                // Only trip counts (wash_interval 1-3) can be written; see washFrequencyEditable.
+                if (washFrequencyEditable(dockSettings.washInterval)) dialogTarget = "wash_freq"
+            }
             DockSettingCard(Modifier.weight(1f), Icons.Default.WaterDrop, AppColors.Water, "Washing mode", DockOptions.washMode.labelFor(dockSettings.washMode)) { dialogTarget = "wash_mode" }
         }
         DockSettingCard(Modifier.fillMaxWidth(), Icons.Default.Delete, MaterialTheme.colorScheme.primary, "Auto-empty mode", DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode)) { dialogTarget = "auto_empty" }
