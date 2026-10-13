@@ -168,9 +168,20 @@ suspend fun VacuumSession.getInitStatus(): V1Response = sendCommand("app_get_ini
 
 suspend fun VacuumSession.getDryerSetting(): V1Response = sendCommand("app_get_dryer_setting")
 
-/** Turns automatic mop drying on or off (python-roborock's `MopDryerTrait.enable/disable`). */
-suspend fun VacuumSession.setDryerSetting(on: Boolean): V1Response =
-    sendCommandRaw("app_set_dryer_setting", JsonObject(mapOf("status" to JsonPrimitive(if (on) 1 else 0))))
+/**
+ * Turns automatic mop drying on or off, and optionally sets how long a drying run lasts. The
+ * official app sends both together (`Object.assign({on: {dry_time}, status}, ...)` in its own
+ * source); [dryTimeSeconds] is left out of the request when not given, rather than sent as null.
+ */
+suspend fun VacuumSession.setDryerSetting(on: Boolean, dryTimeSeconds: Int? = null): V1Response {
+    val body = buildMap {
+        put("status", JsonPrimitive(if (on) 1 else 0))
+        if (dryTimeSeconds != null) {
+            put("on", JsonObject(mapOf("dry_time" to JsonPrimitive(dryTimeSeconds))))
+        }
+    }
+    return sendCommandRaw("app_set_dryer_setting", JsonObject(body))
+}
 
 suspend fun VacuumSession.getValleyElectricityTimer(): V1Response = sendCommand("get_valley_electricity_timer")
 

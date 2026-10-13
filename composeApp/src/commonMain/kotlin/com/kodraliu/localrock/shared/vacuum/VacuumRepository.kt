@@ -888,7 +888,9 @@ class VacuumRepository(
             }
         }
 
-        int(runCatching { session.getWashWaterTemperature() }.getOrNull(), "values")
+        // The read answers as {"wash_water_temperature": n}; the app's own setter sends {"values": n}
+        // instead, confirmed from its decompiled source — the two commands don't share a field name.
+        int(runCatching { session.getWashWaterTemperature() }.getOrNull(), "wash_water_temperature")
             ?.let { _dockSettings.update { s -> s.copy(washWaterTemperature = it) } }
         int(runCatching { session.getDustCollectionSwitchStatus() }.getOrNull(), "status")
             ?.let { _dockSettings.update { s -> s.copy(dustCollectionFrequency = it) } }
@@ -912,8 +914,15 @@ class VacuumRepository(
     }
 
     suspend fun setMopDrying(enabled: Boolean) {
-        session.setDryerSetting(enabled)
+        // Keeps the robot's own dry time rather than resending one, so toggling the switch alone
+        // can't silently change how long a drying run lasts.
+        session.setDryerSetting(enabled, dryTimeSeconds = _dockSettings.value.dryTimeSeconds)
         _dockSettings.update { it.copy(mopDrying = enabled) }
+    }
+
+    suspend fun setDryTime(seconds: Int) {
+        session.setDryerSetting(on = _dockSettings.value.mopDrying ?: true, dryTimeSeconds = seconds)
+        _dockSettings.update { it.copy(dryTimeSeconds = seconds) }
     }
 
     suspend fun setWashWaterTemperature(value: Int) {

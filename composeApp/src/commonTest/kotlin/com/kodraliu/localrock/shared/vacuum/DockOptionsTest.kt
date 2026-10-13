@@ -71,12 +71,18 @@ class DockOptionsTest {
 
     @Test
     fun the_frequency_is_only_written_over_a_value_that_is_understood() {
-        assertEquals(true, washFrequencyEditable(1200, 0))
-        assertEquals(true, washFrequencyEditable(2, 0))
-        assertEquals(false, washFrequencyEditable(null, 0))
-        assertEquals(false, washFrequencyEditable(1200, 1))
-        assertEquals(false, washFrequencyEditable(0, 0))
-        assertEquals(false, washFrequencyEditable(7, 0))
+        assertEquals(true, washFrequencyEditable(1200))
+        assertEquals(true, washFrequencyEditable(2))
+        assertEquals(false, washFrequencyEditable(null))
+        assertEquals(false, washFrequencyEditable(0))
+        assertEquals(false, washFrequencyEditable(7))
+    }
+
+    @Test
+    fun smart_wash_can_be_turned_back_off_because_picking_any_interval_always_clears_it() {
+        // A dock currently in Smart wash (By Room) still has a known wash_interval unit underneath,
+        // so the picker must stay open — otherwise there is no way back to a timed interval.
+        assertEquals(true, washFrequencyEditable(1200))
     }
 
     @Test

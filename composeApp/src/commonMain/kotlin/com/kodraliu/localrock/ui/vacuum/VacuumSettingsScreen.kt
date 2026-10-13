@@ -5,7 +5,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -181,6 +184,7 @@ fun VacuumSettingsScreen(
             onWashIntervalChange = { scope.launch { runCatching { repository.setWashInterval(it) } } },
             onAutoEmptyModeChange = { scope.launch { runCatching { repository.setAutoEmptyMode(it) } } },
             onMopDryingChange = { scope.launch { runCatching { repository.setMopDrying(it) } } },
+            onDryTimeChange = { scope.launch { runCatching { repository.setDryTime(it) } } },
             onWashWaterTemperatureChange = { scope.launch { runCatching { repository.setWashWaterTemperature(it) } } },
             onDustCollectionFrequencyChange = { scope.launch { runCatching { repository.setDustCollectionFrequency(it) } } },
             onCollisionAvoidChange = { scope.launch { runCatching { repository.setCollisionAvoidStatus(it) } } },
@@ -883,6 +887,7 @@ private fun DockSettingsScreen(
     onWashIntervalChange: (Int) -> Unit,
     onAutoEmptyModeChange: (Int) -> Unit,
     onMopDryingChange: (Boolean) -> Unit,
+    onDryTimeChange: (Int) -> Unit,
     onWashWaterTemperatureChange: (Int) -> Unit,
     onDustCollectionFrequencyChange: (Int) -> Unit,
     onCollisionAvoidChange: (Int) -> Unit,
@@ -907,7 +912,7 @@ private fun DockSettingsScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxWidth().padding(padding).padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -919,7 +924,7 @@ private fun DockSettingsScreen(
                     value = washFrequencyLabel(dockSettings.washInterval, dockSettings.smartWash),
                     // Only written over a value this app understands; see washFrequencyEditable.
                     onClick = {
-                        if (washFrequencyEditable(dockSettings.washInterval, dockSettings.smartWash)) {
+                        if (washFrequencyEditable(dockSettings.washInterval)) {
                             dialogTarget = "wash_freq"
                         }
                     },
@@ -954,10 +959,14 @@ private fun DockSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(
+                            Modifier.weight(1f)
+                                .let { if (dockSettings.dryTimeSeconds != null) it.clickable { dialogTarget = "dry_time" } else it },
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
                             Text("Mop drying", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                dockSettings.dryTimeSeconds?.let { "Dries for ${dryTimeLabel(it)} after washing" }
+                                dockSettings.dryTimeSeconds?.let { "Dries for ${dryTimeLabel(it)} after washing · tap to change" }
                                     ?: "Dries the mop after washing",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1031,6 +1040,13 @@ private fun DockSettingsScreen(
     }
 
     when (dialogTarget) {
+        "dry_time" -> DockChoiceDialog(
+            title = "Mop drying duration",
+            choices = DockOptions.dryTime,
+            selectedCode = dockSettings.dryTimeSeconds ?: -1,
+            onSelect = onDryTimeChange,
+            onDismiss = { dialogTarget = null },
+        )
         "wash_temp" -> DockChoiceDialog(
             title = "Wash water temperature",
             choices = DockOptions.washWaterTemperature,

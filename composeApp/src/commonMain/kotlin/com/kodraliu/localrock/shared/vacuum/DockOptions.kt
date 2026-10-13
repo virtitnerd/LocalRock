@@ -76,6 +76,9 @@ object DockOptions {
         DockChoice(1, "Medium"),
         DockChoice(2, "High"),
     )
+
+    /** app_set_dryer_setting's on.dry_time, in seconds. A robot reporting 7200 was seen with "2 h". */
+    val dryTime = listOf(1, 2, 3, 4).map { DockChoice(it * 3600, "$it h") }
 }
 
 /** The label for [code], or "Other (code)" so a value this app has no name for is still shown. */
@@ -105,13 +108,13 @@ fun washIntervalChoices(washInterval: Int?): List<DockChoice> =
     else DockOptions.washTrips
 
 /**
- * Whether the picker may write the mop wash frequency. It needs the robot's own value first, and
- * `smart_wash` at 0: anything else is a different mode whose values are not known here, so writing
- * an interval over it would change what the dock is set to.
+ * Whether the picker may write the mop wash frequency. It needs the robot's own value first, in a
+ * unit this app recognises (a trip count or a seconds interval) — not that `smart_wash` is already
+ * 0: choosing any interval always sends `smart_wash: 0` itself (confirmed from the official app's
+ * own source), so this also doubles as the way to turn Smart wash back off.
  */
-fun washFrequencyEditable(washInterval: Int?, smartWash: Int): Boolean =
-    washInterval != null && smartWash == 0 &&
-        (washInterval in 1..DockOptions.washTrips.size || DockOptions.isSecondsInterval(washInterval))
+fun washFrequencyEditable(washInterval: Int?): Boolean =
+    washInterval != null && (washInterval in 1..DockOptions.washTrips.size || DockOptions.isSecondsInterval(washInterval))
 
 /** The label for the mop wash frequency, from the robot's raw `wash_interval` and `smart_wash`. */
 fun washFrequencyLabel(washInterval: Int?, smartWash: Int): String = when {
