@@ -851,14 +851,21 @@ class VacuumRepository(
     }
 
     suspend fun fetchDockSettings() {
-        runCatching { session.getWashTowelMode() }.getOrNull()
-            ?.result?.jsonObject?.get("wash_mode")?.jsonPrimitive?.intOrNull
+        fun int(answer: V1Response?, key: String): Int? =
+            runCatching { answer?.result.asAnswerObject()?.get(key)?.jsonPrimitive?.intOrNull }.getOrNull()
+
+        int(runCatching { session.getWashTowelMode() }.getOrNull(), "wash_mode")
             ?.let { _dockSettings.update { s -> s.copy(washMode = it) } }
-        runCatching { session.getSmartWashParams() }.getOrNull()
-            ?.result?.jsonObject?.get("wash_interval")?.jsonPrimitive?.intOrNull
-            ?.let { interval -> _dockSettings.update { s -> s.copy(washFreq = (interval - 1).coerceAtLeast(0)) } }
-        runCatching { session.getDustCollectionMode() }.getOrNull()
-            ?.result?.jsonObject?.get("mode")?.jsonPrimitive?.intOrNull
+        int(runCatching { session.getSmartWashParams() }.getOrNull(), "wash_interval")
+            ?.let { interval ->
+                _dockSettings.update { s ->
+                    // Older docks report 1-3 trips; a Qrevo reports 1200. Keep the raw number so the
+                    // UI can show it, and only derive the trip count when it really is one.
+                    val trips = if (interval in 1..DockOptions.washFrequency.size) interval - 1 else s.washFreq
+                    s.copy(washFreq = trips, washInterval = interval)
+                }
+            }
+        int(runCatching { session.getDustCollectionMode() }.getOrNull(), "mode")
             ?.let { _dockSettings.update { s -> s.copy(autoEmptyMode = it) } }
     }
 
@@ -1075,6 +1082,16 @@ class VacuumRepository(
             VacuumStateCodes.MAPPING,
         )
     }
+}
+
+/**
+ * A command answer's object. Some firmware answers `{...}` and some `[{...}]`; python-roborock
+ * unwraps both, so reading only the first shape silently loses the other.
+ */
+internal fun JsonElement?.asAnswerObject(): JsonObject? = when (this) {
+    is JsonObject -> this
+    is JsonArray -> firstOrNull() as? JsonObject
+    else -> null
 }
 
 internal fun buildCron(minute: Int, hour: Int, weekdays: Set<Int>): String {

@@ -96,8 +96,11 @@ import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.CleanSummary
 import com.kodraliu.localrock.shared.vacuum.ConsumableStatus
 import com.kodraliu.localrock.shared.vacuum.DndSettings
+import com.kodraliu.localrock.shared.vacuum.DockOptions
 import com.kodraliu.localrock.shared.vacuum.DockSettings
 import com.kodraliu.localrock.shared.vacuum.RobotSettings
+import com.kodraliu.localrock.shared.vacuum.labelFor
+import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.ui.AppColors
 import kotlinx.coroutines.launch
@@ -848,9 +851,7 @@ private fun DockSettingsScreen(
 ) {
     var dialogTarget by remember { mutableStateOf<String?>(null) }
 
-    val washFreqOptions = listOf("Every trip", "Every 2 trips", "Every 3 trips")
-    val washModeOptions = listOf("Light", "Standard", "Intensive")
-    val autoEmptyOptions = listOf("Smart", "Max suction", "Normal")
+    val washFreqOptions = DockOptions.washFrequency
 
     Scaffold(
         topBar = {
@@ -872,7 +873,7 @@ private fun DockSettingsScreen(
                     icon = Icons.Default.WaterDrop,
                     iconTint = AppColors.Water,
                     title = "Mop Wash Freq",
-                    value = washFreqOptions.getOrElse(dockSettings.washFreq) { "Every trip" },
+                    value = washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval),
                     onClick = { dialogTarget = "wash_freq" },
                 )
                 DockSettingCard(
@@ -880,7 +881,7 @@ private fun DockSettingsScreen(
                     icon = Icons.Default.WaterDrop,
                     iconTint = AppColors.AccentCyan,
                     title = "Washing mode",
-                    value = washModeOptions.getOrElse(dockSettings.washMode) { "Standard" },
+                    value = DockOptions.washMode.labelFor(dockSettings.washMode),
                     onClick = { dialogTarget = "wash_mode" },
                 )
             }
@@ -889,7 +890,7 @@ private fun DockSettingsScreen(
                 icon = Icons.Default.Delete,
                 iconTint = AppColors.Good,
                 title = "Auto-empty mode",
-                value = autoEmptyOptions.getOrElse(dockSettings.autoEmptyMode) { "Smart" },
+                value = DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode),
                 onClick = { dialogTarget = "auto_empty" },
             )
         }
@@ -899,22 +900,27 @@ private fun DockSettingsScreen(
         "wash_freq" -> SimplePickerDialog(
             title = "Mop wash frequency",
             options = washFreqOptions,
-            selected = dockSettings.washFreq,
+            // A raw interval outside 1-3 (a Qrevo's 1200) matches none of the trip counts.
+            selected = if (dockSettings.washInterval == null || dockSettings.washInterval in 1..washFreqOptions.size) {
+                dockSettings.washFreq
+            } else {
+                -1
+            },
             onSelect = { onWashFreqChange(it); dialogTarget = null },
             onDismiss = { dialogTarget = null },
         )
-        "wash_mode" -> SimplePickerDialog(
+        "wash_mode" -> DockChoiceDialog(
             title = "Washing mode",
-            options = washModeOptions,
-            selected = dockSettings.washMode,
-            onSelect = { onWashModeChange(it); dialogTarget = null },
+            choices = DockOptions.washMode,
+            selectedCode = dockSettings.washMode,
+            onSelect = onWashModeChange,
             onDismiss = { dialogTarget = null },
         )
-        "auto_empty" -> SimplePickerDialog(
+        "auto_empty" -> DockChoiceDialog(
             title = "Auto-empty mode",
-            options = autoEmptyOptions,
-            selected = dockSettings.autoEmptyMode,
-            onSelect = { onAutoEmptyModeChange(it); dialogTarget = null },
+            choices = DockOptions.autoEmpty,
+            selectedCode = dockSettings.autoEmptyMode,
+            onSelect = onAutoEmptyModeChange,
             onDismiss = { dialogTarget = null },
         )
     }
