@@ -599,18 +599,10 @@ private fun MapHeroSection(
                 map = parsedMap,
                 selectedRoomIds = selectedRoomIds,
                 onRoomTap = onRoomTap,
-                modifier = Modifier.fillMaxSize().graphicsLayer {
-                    rotationZ = rotationDegrees.toFloat()
-                    // 3D is a cosmetic perspective tilt on the flat map image, not real geometry;
-                    // the robot has no 3D map data to render. cameraDistance keeps the tilt subtle
-                    // instead of distorting into a point.
-                    if (is3D) {
-                        rotationX = 42f
-                        cameraDistance = 16f * density
-                        scaleX = 1.12f
-                        scaleY = 1.12f
-                    }
-                },
+                is3D = is3D,
+                // In 3D the bitmap itself is a true isometric render (see renderMapIsometric in
+                // MapRenderer), not a flat image to fake a camera angle on, so only rotation applies.
+                modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotationDegrees.toFloat() },
             )
         } else {
             MapEmptyState(busy = busy, onLoadMap = onLoadMap, onRecover = onRecover, modifier = Modifier.fillMaxSize())
@@ -755,10 +747,13 @@ private fun VacuumMapImage(
     map: ParsedMap,
     selectedRoomIds: List<Int>,
     onRoomTap: (Int) -> Unit,
+    is3D: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val bitmap = rememberMapBitmap(map)
-    val aspectRatio = map.width.toFloat() / map.height.toFloat()
+    val bitmap = rememberMapBitmap(map, is3D = is3D)
+    // The isometric 3D bitmap has a different shape than the flat map, so the aspect ratio has to
+    // come from whatever was actually rendered, not the raw map dimensions.
+    val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
     val labelRooms = remember(map.rooms) { map.rooms.filter { it.labelNormX != null && it.labelNormY != null } }
     val textMeasurer = rememberTextMeasurer()
     // Labels follow the scheme rather than being a fixed black scrim: over a light map a dark
@@ -836,6 +831,9 @@ private fun VacuumMapImage(
                             mapOffset = fit?.second ?: Offset.Zero
                         },
                         onTap = { tapOffset ->
+                            // Room hit-testing assumes the flat top-down bitmap's coordinate space;
+                            // the isometric 3D render doesn't share it, so tapping a room is 2D-only.
+                            if (is3D) return@detectTapGestures
                             val mapX = (tapOffset.x - mapOffset.x) / mapScale
                             val mapY = (tapOffset.y - mapOffset.y) / mapScale
                             map.roomAtNorm(mapX / size.width, mapY / size.height)
@@ -1663,7 +1661,7 @@ private fun DockSettingsTab(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DockSettingCard(Modifier.weight(1f), Icons.Default.Repeat, AppColors.Water, "Mop wash frequency", washFrequencyLabel(dockSettings.washInterval, dockSettings.smartWash)) {
                 // Only written over a value this app understands; see washFrequencyEditable.
-                if (washFrequencyEditable(dockSettings.washInterval, dockSettings.smartWash)) dialogTarget = "wash_freq"
+                if (washFrequencyEditable(dockSettings.washInterval)) dialogTarget = "wash_freq"
             }
             DockSettingCard(Modifier.weight(1f), Icons.Default.WaterDrop, AppColors.Water, "Washing mode", DockOptions.washMode.labelFor(dockSettings.washMode)) { dialogTarget = "wash_mode" }
         }
