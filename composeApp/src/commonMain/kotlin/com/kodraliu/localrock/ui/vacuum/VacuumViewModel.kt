@@ -7,6 +7,7 @@ import com.kodraliu.localrock.shared.messages.MessageSeverity
 import com.kodraliu.localrock.shared.vacuum.MapEditException
 import com.kodraliu.localrock.shared.vacuum.VacuumErrorCodes
 import com.kodraliu.localrock.shared.vacuum.VacuumRepository
+import com.kodraliu.localrock.shared.vacuum.ProductCatalog
 import com.kodraliu.localrock.shared.vacuum.isSmartPlanSupported
 import com.kodraliu.localrock.shared.vacuum.isWaterSlideSupported
 import kotlinx.coroutines.TimeoutCancellationException
@@ -26,6 +27,7 @@ class VacuumViewModel(
 
     val deviceName: String = device.name
     val modelName: String? = container.deviceRepository.productsByDuid.value[duid]?.model
+    val modelDisplayName: String? = ProductCatalog.displayName(modelName)
     val firmwareVersion: String? = device.fv
     val supportsSmartPlan: Boolean = isSmartPlanSupported(device.newFeatureSet)
     val supportsWaterSlide: Boolean = isWaterSlideSupported(device.newFeatureSet)
@@ -36,6 +38,25 @@ class VacuumViewModel(
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    // The map's rotation and 2D/3D view are a purely local rendering choice: the robot has no
+    // concept of either, so these live in this device's app settings rather than any RPC.
+    private val _mapRotation = MutableStateFlow(container.appSettings.mapRotation(device.duid))
+    val mapRotation: StateFlow<Int> = _mapRotation.asStateFlow()
+
+    fun rotateMap90() {
+        val next = (_mapRotation.value + 90) % 360
+        container.appSettings.setMapRotation(device.duid, next)
+        _mapRotation.value = next
+    }
+
+    private val _map3D = MutableStateFlow(container.appSettings.map3D(device.duid))
+    val map3D: StateFlow<Boolean> = _map3D.asStateFlow()
+
+    fun setMap3D(value: Boolean) {
+        container.appSettings.setMap3D(device.duid, value)
+        _map3D.value = value
+    }
 
     private val _firmwareUpdate = MutableStateFlow<FirmwareUpdateState>(FirmwareUpdateState.Idle)
     val firmwareUpdate: StateFlow<FirmwareUpdateState> = _firmwareUpdate.asStateFlow()
