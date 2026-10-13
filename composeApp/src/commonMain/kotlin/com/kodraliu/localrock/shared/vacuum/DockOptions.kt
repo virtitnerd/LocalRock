@@ -28,24 +28,69 @@ object DockOptions {
         DockChoice(8, "Super intensive"),
     )
 
-    /** "Every trip" and so on, indexed by `wash_interval - 1`; the robot's own numbers can be larger. */
-    val washFrequency = listOf("Every trip", "Every 2 trips", "Every 3 trips")
+    /** Older docks count trips: `wash_interval` 1, 2 or 3. */
+    val washTrips = listOf(
+        DockChoice(1, "Every trip"),
+        DockChoice(2, "Every 2 trips"),
+        DockChoice(3, "Every 3 trips"),
+    )
+
+    /** Docks that report `wash_interval` in seconds (a Qrevo answers 1200 for every 20 minutes). */
+    val washMinutes = listOf(10, 15, 20, 25, 30).map { DockChoice(it * 60, "Every $it min") }
+
+    /** Anything below this is a trip count, not seconds. */
+    private const val SMALLEST_SECONDS_INTERVAL = 60
+
+    fun isSecondsInterval(washInterval: Int): Boolean = washInterval >= SMALLEST_SECONDS_INTERVAL
 }
 
 /** The label for [code], or "Other (code)" so a value this app has no name for is still shown. */
 fun List<DockChoice>.labelFor(code: Int): String =
     firstOrNull { it.code == code }?.label ?: "Other ($code)"
 
-/** Whether the trip-count picker may write [washInterval]; outside 1-3 its meaning is not known. */
-fun washFrequencyEditable(washInterval: Int?): Boolean =
-    washInterval == null || washInterval in 1..DockOptions.washFrequency.size
+/**
+ * Which washing modes the robot offers, as the official app does: Light, Standard and Intensive
+ * always, then Smart where the robot supports dirty-replenish cleaning, otherwise Super intensive
+ * where it supports super-deep wash. With nothing known yet every mode is offered, as before.
+ */
+fun washModeChoices(features: DeviceFeatures?): List<DockChoice> {
+    val basic = DockOptions.washMode.filter { it.code in 0..2 }
+    val smart = DockOptions.washMode.first { it.code == 10 }
+    val superIntensive = DockOptions.washMode.first { it.code == 8 }
+    return when {
+        features == null -> listOf(smart) + basic + superIntensive
+        features.dirtyReplenishClean -> basic + smart
+        features.superDeepWash -> basic + superIntensive
+        else -> basic
+    }
+}
+
+/** The choices for the mop wash frequency, in the unit this dock reports. */
+fun washIntervalChoices(washInterval: Int?): List<DockChoice> =
+    if (washInterval != null && DockOptions.isSecondsInterval(washInterval)) DockOptions.washMinutes
+    else DockOptions.washTrips
 
 /**
- * The label for the mop wash frequency. [washInterval] is the robot's raw `wash_interval`; a Qrevo
- * reports 1200 where older docks report 1-3, and that must not be mistaken for "every trip".
+ * Whether the picker may write the mop wash frequency. It needs the robot's own value first, and
+ * `smart_wash` at 0: anything else is a different mode whose values are not known here, so writing
+ * an interval over it would change what the dock is set to.
  */
-fun washFrequencyLabel(washFreq: Int, washInterval: Int?): String {
-    val options = DockOptions.washFrequency
-    if (washInterval != null && washInterval !in 1..options.size) return "Other ($washInterval)"
-    return options.getOrElse(washFreq) { options.first() }
+fun washFrequencyEditable(washInterval: Int?, smartWash: Int): Boolean =
+    washInterval != null && smartWash == 0 &&
+        (washInterval in 1..DockOptions.washTrips.size || DockOptions.isSecondsInterval(washInterval))
+
+/** The label for the mop wash frequency, from the robot's raw `wash_interval` and `smart_wash`. */
+fun washFrequencyLabel(washInterval: Int?, smartWash: Int): String = when {
+    washInterval == null -> "Unknown"
+    smartWash != 0 -> "Smart wash"
+    DockOptions.isSecondsInterval(washInterval) ->
+        if (washInterval % 60 == 0) "Every ${washInterval / 60} min" else "Every $washInterval s"
+    else -> DockOptions.washTrips.labelFor(washInterval)
+}
+
+/** How long a drying run lasts, from the robot's seconds: "2 h", "90 min". */
+fun dryTimeLabel(seconds: Int): String = when {
+    seconds % 3600 == 0 -> "${seconds / 3600} h"
+    seconds % 60 == 0 -> "${seconds / 60} min"
+    else -> "$seconds s"
 }

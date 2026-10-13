@@ -153,6 +153,8 @@ import com.kodraliu.localrock.shared.vacuum.mapNameBlocker
 import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
 import com.kodraliu.localrock.shared.vacuum.washFrequencyEditable
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
+import com.kodraliu.localrock.shared.vacuum.washIntervalChoices
+import com.kodraliu.localrock.shared.vacuum.washModeChoices
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapRoom
 import com.kodraliu.localrock.shared.vacuum.map.roomAtNorm
@@ -438,7 +440,7 @@ fun VacuumDetailScreen(
                 onDryMop = { viewModel.run { it.startDryer() } },
                 onStopDry = { viewModel.run { it.stopDryer() } },
                 onWashModeChange = { mode -> viewModel.run { repo -> repo.setWashMode(mode) } },
-                onWashFreqChange = { freq -> viewModel.run { repo -> repo.setWashFreq(freq) } },
+                onWashFreqChange = { freq -> viewModel.run { repo -> repo.setWashInterval(freq) } },
                 onAutoEmptyModeChange = { mode -> viewModel.run { repo -> repo.setAutoEmptyMode(mode) } },
             )
         }
@@ -1618,28 +1620,29 @@ private fun DockSettingsTab(
     onAutoEmptyModeChange: (Int) -> Unit,
 ) {
     var dialogTarget by remember { mutableStateOf<String?>(null) }
-    val washFreqOptions = DockOptions.washFrequency
+    val features = dockSettings.features
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DockSettingCard(Modifier.weight(1f), Icons.Default.Repeat, AppColors.Water, "Mop wash frequency", washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval)) {
-                // Only trip counts (wash_interval 1-3) can be written; see washFrequencyEditable.
-                if (washFrequencyEditable(dockSettings.washInterval)) dialogTarget = "wash_freq"
+            DockSettingCard(Modifier.weight(1f), Icons.Default.Repeat, AppColors.Water, "Mop wash frequency", washFrequencyLabel(dockSettings.washInterval, dockSettings.smartWash)) {
+                // Only written over a value this app understands; see washFrequencyEditable.
+                if (washFrequencyEditable(dockSettings.washInterval, dockSettings.smartWash)) dialogTarget = "wash_freq"
             }
             DockSettingCard(Modifier.weight(1f), Icons.Default.WaterDrop, AppColors.Water, "Washing mode", DockOptions.washMode.labelFor(dockSettings.washMode)) { dialogTarget = "wash_mode" }
         }
-        DockSettingCard(Modifier.fillMaxWidth(), Icons.Default.Delete, MaterialTheme.colorScheme.primary, "Auto-empty mode", DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode)) { dialogTarget = "auto_empty" }
+        if (features == null || features.dustCollectionSetting) {
+            DockSettingCard(Modifier.fillMaxWidth(), Icons.Default.Delete, MaterialTheme.colorScheme.primary, "Auto-empty mode", DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode)) { dialogTarget = "auto_empty" }
+        }
     }
 
     when (dialogTarget) {
-        // A raw interval outside 1-3 (a Qrevo's 1200) matches none of the trip counts, so none is selected.
-        "wash_freq" -> RadioPickerDialog(
+        "wash_freq" -> DockChoiceDialog(
             "Mop wash frequency",
-            washFreqOptions,
-            if (dockSettings.washInterval == null || dockSettings.washInterval in 1..washFreqOptions.size) dockSettings.washFreq else -1,
+            washIntervalChoices(dockSettings.washInterval),
+            dockSettings.washInterval ?: -1,
             onWashFreqChange,
         ) { dialogTarget = null }
-        "wash_mode" -> DockChoiceDialog("Washing mode", DockOptions.washMode, dockSettings.washMode, onWashModeChange) { dialogTarget = null }
+        "wash_mode" -> DockChoiceDialog("Washing mode", washModeChoices(features), dockSettings.washMode, onWashModeChange) { dialogTarget = null }
         "auto_empty" -> DockChoiceDialog("Auto-empty mode", DockOptions.autoEmpty, dockSettings.autoEmptyMode, onAutoEmptyModeChange) { dialogTarget = null }
     }
 }

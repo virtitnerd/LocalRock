@@ -100,8 +100,11 @@ import com.kodraliu.localrock.shared.vacuum.DockOptions
 import com.kodraliu.localrock.shared.vacuum.DockSettings
 import com.kodraliu.localrock.shared.vacuum.RobotSettings
 import com.kodraliu.localrock.shared.vacuum.labelFor
+import com.kodraliu.localrock.shared.vacuum.dryTimeLabel
 import com.kodraliu.localrock.shared.vacuum.washFrequencyEditable
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
+import com.kodraliu.localrock.shared.vacuum.washIntervalChoices
+import com.kodraliu.localrock.shared.vacuum.washModeChoices
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.ui.AppColors
 import kotlinx.coroutines.launch
@@ -116,6 +119,7 @@ private sealed interface SettingsRoute {
     data object DockSettings : SettingsRoute
     data object RobotSettings : SettingsRoute
     data object DndMode : SettingsRoute
+    data object ValleyElectricity : SettingsRoute
     data object History : SettingsRoute
 }
 
@@ -134,6 +138,7 @@ fun VacuumSettingsScreen(
     val robotSettings by repository.robotSettings.collectAsState()
     val dockSettings by repository.dockSettings.collectAsState()
     val dndSettings by repository.dndSettings.collectAsState()
+    val valleySettings by repository.valleySettings.collectAsState()
     val cleanHistory by repository.cleanHistory.collectAsState()
     val cleanSummary by repository.cleanSummary.collectAsState()
     val firmwareUpdate by viewModel.firmwareUpdate.collectAsState()
@@ -172,9 +177,27 @@ fun VacuumSettingsScreen(
         SettingsRoute.DockSettings -> DockSettingsScreen(
             dockSettings = dockSettings,
             onWashModeChange = { scope.launch { runCatching { repository.setWashMode(it) } } },
-            onWashFreqChange = { scope.launch { runCatching { repository.setWashFreq(it) } } },
+            onWashIntervalChange = { scope.launch { runCatching { repository.setWashInterval(it) } } },
             onAutoEmptyModeChange = { scope.launch { runCatching { repository.setAutoEmptyMode(it) } } },
+            onMopDryingChange = { scope.launch { runCatching { repository.setMopDrying(it) } } },
+            onValleyElectricity = {
+                scope.launch { runCatching { repository.fetchValleySettings() } }
+                route = SettingsRoute.ValleyElectricity
+            },
             onBack = { route = SettingsRoute.Root },
+        )
+        SettingsRoute.ValleyElectricity -> DndScreen(
+            // The valley window has the same shape as quiet hours: an on/off and a start and end time.
+            dndSettings = valleySettings?.let {
+                DndSettings(it.enabled, it.startHour, it.startMinute, it.endHour, it.endMinute)
+            },
+            onEnable = { sh, sm, eh, em -> scope.launch { runCatching { repository.setValley(sh, sm, eh, em) } } },
+            onDisable = { scope.launch { runCatching { repository.disableValley() } } },
+            onBack = { route = SettingsRoute.DockSettings },
+            title = "Valley electricity",
+            enableLabel = "Off-peak hours",
+            offText = "Robot is not limited to off-peak hours",
+            note = { s, e -> "Charging and cleaning run between $s and $e." },
         )
         SettingsRoute.RobotSettings -> RobotSettingsScreen(
             robotSettings = robotSettings,
@@ -387,6 +410,10 @@ private fun DndScreen(
     onEnable: (startHour: Int, startMinute: Int, endHour: Int, endMinute: Int) -> Unit,
     onDisable: () -> Unit,
     onBack: () -> Unit,
+    title: String = "Do Not Disturb",
+    enableLabel: String = "Enable quiet hours",
+    offText: String = "Robot will clean anytime",
+    note: (start: String, end: String) -> String = { s, e -> "Robot won't start cleaning between $s and $e." },
 ) {
     val settings = dndSettings ?: DndSettings()
     var enabled by remember(dndSettings?.enabled) { mutableStateOf(settings.enabled) }
@@ -402,7 +429,7 @@ private fun DndScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Do Not Disturb") },
+                title = { Text(title) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             )
         },
@@ -417,10 +444,10 @@ private fun DndScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Enable quiet hours", style = MaterialTheme.typography.bodyLarge)
+                    Text(enableLabel, style = MaterialTheme.typography.bodyLarge)
                     Text(
                         if (enabled) "${formatTime(startHour, startMinute)} – ${formatTime(endHour, endMinute)}"
-                        else "Robot will clean anytime",
+                        else offText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -453,7 +480,7 @@ private fun DndScreen(
                     shape = MaterialTheme.shapes.medium,
                 ) {
                     Text(
-                        "Robot won't start cleaning between ${formatTime(startHour, startMinute)} and ${formatTime(endHour, endMinute)}.",
+                        note(formatTime(startHour, startMinute), formatTime(endHour, endMinute)),
                         modifier = Modifier.padding(14.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -846,13 +873,15 @@ private fun CleanRecordRow(record: CleanRecord) {
 private fun DockSettingsScreen(
     dockSettings: DockSettings,
     onWashModeChange: (Int) -> Unit,
-    onWashFreqChange: (Int) -> Unit,
+    onWashIntervalChange: (Int) -> Unit,
     onAutoEmptyModeChange: (Int) -> Unit,
+    onMopDryingChange: (Boolean) -> Unit,
+    onValleyElectricity: () -> Unit,
     onBack: () -> Unit,
 ) {
     var dialogTarget by remember { mutableStateOf<String?>(null) }
-
-    val washFreqOptions = DockOptions.washFrequency
+    // Until the robot has said what it supports, every control is shown, as it always was.
+    val features = dockSettings.features
 
     Scaffold(
         topBar = {
@@ -873,11 +902,14 @@ private fun DockSettingsScreen(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.WaterDrop,
                     iconTint = AppColors.Water,
-                    title = "Mop Wash Freq",
-                    value = washFrequencyLabel(dockSettings.washFreq, dockSettings.washInterval),
-                    // The trip counts are written as wash_interval 1-3; on a dock reporting something
-                    // else (a Qrevo's 1200) that would overwrite a value we don't understand.
-                    onClick = { if (washFrequencyEditable(dockSettings.washInterval)) dialogTarget = "wash_freq" },
+                    title = "Mop wash frequency",
+                    value = washFrequencyLabel(dockSettings.washInterval, dockSettings.smartWash),
+                    // Only written over a value this app understands; see washFrequencyEditable.
+                    onClick = {
+                        if (washFrequencyEditable(dockSettings.washInterval, dockSettings.smartWash)) {
+                            dialogTarget = "wash_freq"
+                        }
+                    },
                 )
                 DockSettingCard(
                     modifier = Modifier.weight(1f),
@@ -888,33 +920,67 @@ private fun DockSettingsScreen(
                     onClick = { dialogTarget = "wash_mode" },
                 )
             }
-            DockSettingCard(
-                modifier = Modifier.fillMaxWidth(),
-                icon = Icons.Default.Delete,
-                iconTint = AppColors.Good,
-                title = "Auto-empty mode",
-                value = DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode),
-                onClick = { dialogTarget = "auto_empty" },
-            )
+            if (features == null || features.dustCollectionSetting) {
+                DockSettingCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.Delete,
+                    iconTint = AppColors.Good,
+                    title = "Auto-empty mode",
+                    value = DockOptions.autoEmpty.labelFor(dockSettings.autoEmptyMode),
+                    onClick = { dialogTarget = "auto_empty" },
+                )
+            }
+            if ((features == null || features.drying) && dockSettings.mopDrying != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Mop drying", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                dockSettings.dryTimeSeconds?.let { "Dries for ${dryTimeLabel(it)} after washing" }
+                                    ?: "Dries the mop after washing",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = dockSettings.mopDrying == true,
+                            onCheckedChange = onMopDryingChange,
+                        )
+                    }
+                }
+            }
+            if (features == null || features.valleyElectricity) {
+                DockSettingCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.Schedule,
+                    iconTint = AppColors.AccentIndigo,
+                    title = "Valley electricity",
+                    value = "Off-peak hours",
+                    onClick = onValleyElectricity,
+                )
+            }
         }
     }
 
     when (dialogTarget) {
-        "wash_freq" -> SimplePickerDialog(
+        "wash_freq" -> DockChoiceDialog(
             title = "Mop wash frequency",
-            options = washFreqOptions,
-            // A raw interval outside 1-3 (a Qrevo's 1200) matches none of the trip counts.
-            selected = if (dockSettings.washInterval == null || dockSettings.washInterval in 1..washFreqOptions.size) {
-                dockSettings.washFreq
-            } else {
-                -1
-            },
-            onSelect = { onWashFreqChange(it); dialogTarget = null },
+            choices = washIntervalChoices(dockSettings.washInterval),
+            selectedCode = dockSettings.washInterval ?: -1,
+            onSelect = onWashIntervalChange,
             onDismiss = { dialogTarget = null },
         )
         "wash_mode" -> DockChoiceDialog(
             title = "Washing mode",
-            choices = DockOptions.washMode,
+            choices = washModeChoices(features),
             selectedCode = dockSettings.washMode,
             onSelect = onWashModeChange,
             onDismiss = { dialogTarget = null },

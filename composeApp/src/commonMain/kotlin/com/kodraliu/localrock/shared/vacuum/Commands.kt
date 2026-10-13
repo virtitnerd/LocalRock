@@ -155,11 +155,36 @@ suspend fun VacuumSession.setWashTowelMode(mode: Int): V1Response =
     sendCommand("set_wash_towel_mode", listOf(JsonObject(mapOf("wash_mode" to JsonPrimitive(mode)))))
 
 suspend fun VacuumSession.getSmartWashParams(): V1Response = sendCommand("get_smart_wash_params")
-suspend fun VacuumSession.setSmartWashParams(washFreq: Int): V1Response =
+
+/** [washInterval] is the robot's raw value: a trip count (1-3) on older docks, seconds on a Qrevo. */
+suspend fun VacuumSession.setSmartWashParams(washInterval: Int): V1Response =
     sendCommand("set_smart_wash_params", listOf(JsonObject(mapOf(
         "smart_wash" to JsonPrimitive(0),
-        "wash_interval" to JsonPrimitive(washFreq + 1),
+        "wash_interval" to JsonPrimitive(washInterval),
     ))))
+
+/** The robot's feature flags; the same question the official app asks on connecting. */
+suspend fun VacuumSession.getInitStatus(): V1Response = sendCommand("app_get_init_status")
+
+suspend fun VacuumSession.getDryerSetting(): V1Response = sendCommand("app_get_dryer_setting")
+
+/** Turns automatic mop drying on or off (python-roborock's `MopDryerTrait.enable/disable`). */
+suspend fun VacuumSession.setDryerSetting(on: Boolean): V1Response =
+    sendCommandRaw("app_set_dryer_setting", JsonObject(mapOf("status" to JsonPrimitive(if (on) 1 else 0))))
+
+suspend fun VacuumSession.getValleyElectricityTimer(): V1Response = sendCommand("get_valley_electricity_timer")
+
+/** The four numbers ride as the params list itself, as python-roborock sends `timer.as_list()`. */
+suspend fun VacuumSession.setValleyElectricityTimer(
+    startHour: Int,
+    startMinute: Int,
+    endHour: Int,
+    endMinute: Int,
+): V1Response = sendCommand("set_valley_electricity_timer", listOf(
+    JsonPrimitive(startHour), JsonPrimitive(startMinute), JsonPrimitive(endHour), JsonPrimitive(endMinute),
+))
+
+suspend fun VacuumSession.closeValleyElectricityTimer(): V1Response = sendCommand("close_valley_electricity_timer")
 
 suspend fun VacuumSession.getDustCollectionMode(): V1Response = sendCommand("get_dust_collection_mode")
 suspend fun VacuumSession.setDustCollectionMode(mode: Int): V1Response =

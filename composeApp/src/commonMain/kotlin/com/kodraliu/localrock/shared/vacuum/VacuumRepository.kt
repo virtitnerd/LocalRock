@@ -850,23 +850,43 @@ class VacuumRepository(
         _robotSettings.update { it.copy(carpetMode = mode) }
     }
 
+    /**
+     * Asks the robot what it supports, once, the way the official app does on connecting. A robot
+     * that does not answer leaves the features unknown, and the screens then show everything.
+     */
+    suspend fun fetchDeviceFeatures() {
+        if (_dockSettings.value.features != null) return
+        val status = runCatching { session.getInitStatus() }.getOrNull()?.result.asAnswerObject() ?: return
+        val info = status["new_feature_info"]?.jsonPrimitive?.longOrNull ?: return
+        val infoStr = status["new_feature_info_str"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        _dockSettings.update { it.copy(features = DeviceFeatures.fromInitStatus(info, infoStr)) }
+    }
+
     suspend fun fetchDockSettings() {
         fun int(answer: V1Response?, key: String): Int? =
             runCatching { answer?.result.asAnswerObject()?.get(key)?.jsonPrimitive?.intOrNull }.getOrNull()
 
+        fetchDeviceFeatures()
+        val features = _dockSettings.value.features
+
         int(runCatching { session.getWashTowelMode() }.getOrNull(), "wash_mode")
             ?.let { _dockSettings.update { s -> s.copy(washMode = it) } }
-        int(runCatching { session.getSmartWashParams() }.getOrNull(), "wash_interval")
-            ?.let { interval ->
-                _dockSettings.update { s ->
-                    // Older docks report 1-3 trips; a Qrevo reports 1200. Keep the raw number so the
-                    // UI can show it, and only derive the trip count when it really is one.
-                    val trips = if (interval in 1..DockOptions.washFrequency.size) interval - 1 else s.washFreq
-                    s.copy(washFreq = trips, washInterval = interval)
-                }
-            }
+        val wash = runCatching { session.getSmartWashParams() }.getOrNull()
+        // Keep the raw numbers: a Qrevo reports seconds (1200) where older docks report 1-3 trips.
+        int(wash, "wash_interval")?.let { interval ->
+            _dockSettings.update { s -> s.copy(washInterval = interval, smartWash = int(wash, "smart_wash") ?: 0) }
+        }
         int(runCatching { session.getDustCollectionMode() }.getOrNull(), "mode")
             ?.let { _dockSettings.update { s -> s.copy(autoEmptyMode = it) } }
+
+        // Only a robot that says it has a mop dryer is asked for its setting.
+        if (features == null || features.drying) {
+            val dryer = runCatching { session.getDryerSetting() }.getOrNull()?.result.asAnswerObject()
+            dryer?.get("status")?.jsonPrimitive?.intOrNull?.let { status ->
+                val seconds = (dryer["on"] as? JsonObject)?.get("dry_time")?.jsonPrimitive?.intOrNull
+                _dockSettings.update { it.copy(mopDrying = status == 1, dryTimeSeconds = seconds) }
+            }
+        }
     }
 
     suspend fun setWashMode(mode: Int) {
@@ -874,9 +894,41 @@ class VacuumRepository(
         _dockSettings.update { it.copy(washMode = mode) }
     }
 
-    suspend fun setWashFreq(freq: Int) {
-        session.setSmartWashParams(freq)
-        _dockSettings.update { it.copy(washFreq = freq) }
+    /** Writes the robot's raw interval: trips (1-3) or seconds, whichever unit this dock reports. */
+    suspend fun setWashInterval(interval: Int) {
+        session.setSmartWashParams(interval)
+        _dockSettings.update { it.copy(washInterval = interval, smartWash = 0) }
+    }
+
+    suspend fun setMopDrying(enabled: Boolean) {
+        session.setDryerSetting(enabled)
+        _dockSettings.update { it.copy(mopDrying = enabled) }
+    }
+
+    private val _valleySettings = MutableStateFlow<ValleySettings?>(null)
+    val valleySettings: StateFlow<ValleySettings?> = _valleySettings
+
+    suspend fun fetchValleySettings() {
+        val obj = session.getValleyElectricityTimer().result.asAnswerObject() ?: return
+        _valleySettings.value = ValleySettings(
+            enabled = obj["enabled"]?.jsonPrimitive?.intOrNull == 1,
+            startHour = obj["start_hour"]?.jsonPrimitive?.intOrNull ?: 22,
+            startMinute = obj["start_minute"]?.jsonPrimitive?.intOrNull ?: 0,
+            endHour = obj["end_hour"]?.jsonPrimitive?.intOrNull ?: 6,
+            endMinute = obj["end_minute"]?.jsonPrimitive?.intOrNull ?: 0,
+        )
+    }
+
+    suspend fun setValley(startHour: Int, startMinute: Int, endHour: Int, endMinute: Int) {
+        session.setValleyElectricityTimer(startHour, startMinute, endHour, endMinute)
+        _valleySettings.update {
+            ValleySettings(true, startHour, startMinute, endHour, endMinute)
+        }
+    }
+
+    suspend fun disableValley() {
+        session.closeValleyElectricityTimer()
+        _valleySettings.update { it?.copy(enabled = false) }
     }
 
     suspend fun setAutoEmptyMode(mode: Int) {
