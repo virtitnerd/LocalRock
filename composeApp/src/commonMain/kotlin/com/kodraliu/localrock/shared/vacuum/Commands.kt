@@ -190,6 +190,33 @@ suspend fun VacuumSession.getDustCollectionMode(): V1Response = sendCommand("get
 suspend fun VacuumSession.setDustCollectionMode(mode: Int): V1Response =
     sendCommand("set_dust_collection_mode", listOf(JsonObject(mapOf("mode" to JsonPrimitive(mode)))))
 
+/** The dock's auto-empty frequency, distinct from the suction-strength mode above. */
+suspend fun VacuumSession.getDustCollectionSwitchStatus(): V1Response = sendCommand("get_dust_collection_switch_status")
+suspend fun VacuumSession.setDustCollectionSwitchStatus(status: Int): V1Response =
+    sendCommand("set_dust_collection_switch_status", listOf(JsonObject(mapOf("status" to JsonPrimitive(status)))))
+
+suspend fun VacuumSession.getWashWaterTemperature(): V1Response = sendCommand("get_wash_water_temperature")
+suspend fun VacuumSession.setWashWaterTemperature(value: Int): V1Response =
+    sendCommand("set_wash_water_temperature", listOf(JsonObject(mapOf("values" to JsonPrimitive(value)))))
+
+suspend fun VacuumSession.getCollisionAvoidStatus(): V1Response = sendCommand("get_collision_avoid_status")
+suspend fun VacuumSession.setCollisionAvoidStatus(status: Int): V1Response =
+    sendCommand("set_collision_avoid_status", listOf(JsonObject(mapOf("status" to JsonPrimitive(status)))))
+
+// getCarpetCleanMode/setCarpetCleanMode already exist above (RobotSettings.carpetMode: avoid/standard/boost).
+
+/** Whether the robot lifts its mop to vacuum carpets before mopping the rest of the floor. */
+suspend fun VacuumSession.setCarpetFirstSwitch(on: Boolean): V1Response =
+    sendCommand("app_set_priority_carpet_cleaning_status", listOf(JsonObject(mapOf("status" to JsonPrimitive(if (on) 1 else 0)))))
+
+/** Whether the robot crosses carpets and door sills with the mop cloths lifted. */
+suspend fun VacuumSession.setCarpetCrossSwitch(on: Boolean): V1Response =
+    sendCommand("app_set_cross_carpet_cleaning_status", listOf(JsonObject(mapOf("status" to JsonPrimitive(if (on) 1 else 0)))))
+
+/** Whether the robot cleans carpets separately, room by room, after the main clean. */
+suspend fun VacuumSession.setCarpetDeepClean(on: Boolean): V1Response =
+    sendCommand("app_set_carpet_deep_clean_status", listOf(JsonPrimitive(if (on) 1 else 0)))
+
 
 suspend fun VacuumSession.getDndTimer(): V1Response = sendCommand("get_dnd_timer")
 suspend fun VacuumSession.setDndTimer(startHour: Int, startMinute: Int, endHour: Int, endMinute: Int): V1Response =

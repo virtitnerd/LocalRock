@@ -42,6 +42,40 @@ object DockOptions {
     private const val SMALLEST_SECONDS_INTERVAL = 60
 
     fun isSecondsInterval(washInterval: Int): Boolean = washInterval >= SMALLEST_SECONDS_INTERVAL
+
+    /**
+     * set_wash_water_temperature. Names match the official app's "Washing Water Temperature"
+     * screen; the codes are inferred from a robot reporting 2 while "Hot Water" was selected there,
+     * not independently confirmed.
+     */
+    val washWaterTemperature = listOf(
+        DockChoice(0, "Room temperature"),
+        DockChoice(1, "Warm water"),
+        DockChoice(2, "Hot water"),
+    )
+
+    /**
+     * set_collision_avoid_status. The official app's on/off switch and its "Less Collision Mode"
+     * submenu (None/Balanced/Sensitive) both read and write this one code. 0 as "off" and the
+     * Balanced/Sensitive order are inferred, not independently confirmed; a robot reporting 1 was
+     * seen with Balanced selected.
+     */
+    val collisionAvoidance = listOf(
+        DockChoice(0, "Off"),
+        DockChoice(1, "Balanced"),
+        DockChoice(2, "Sensitive"),
+    )
+
+    /**
+     * set_dust_collection_switch_status, the dock's auto-empty frequency (separate from the
+     * suction-strength Empty Mode). Only the top value is confirmed: a robot reporting 2 was seen
+     * with "High" selected. The rest of the scale and its exact codes are a guess pending capture.
+     */
+    val dustCollectionFrequency = listOf(
+        DockChoice(0, "Low"),
+        DockChoice(1, "Medium"),
+        DockChoice(2, "High"),
+    )
 }
 
 /** The label for [code], or "Other (code)" so a value this app has no name for is still shown. */

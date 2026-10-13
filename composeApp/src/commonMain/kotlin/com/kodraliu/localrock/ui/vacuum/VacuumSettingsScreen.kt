@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Cached
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
@@ -145,7 +146,7 @@ fun VacuumSettingsScreen(
 
     when (route) {
         SettingsRoute.Root -> SettingsRootScreen(
-            modelName = viewModel.modelName,
+            modelName = viewModel.modelDisplayName,
             firmwareVersion = viewModel.firmwareVersion,
             firmwareUpdate = firmwareUpdate,
             onCheckUpdate = { viewModel.checkFirmwareUpdate() },
@@ -180,6 +181,12 @@ fun VacuumSettingsScreen(
             onWashIntervalChange = { scope.launch { runCatching { repository.setWashInterval(it) } } },
             onAutoEmptyModeChange = { scope.launch { runCatching { repository.setAutoEmptyMode(it) } } },
             onMopDryingChange = { scope.launch { runCatching { repository.setMopDrying(it) } } },
+            onWashWaterTemperatureChange = { scope.launch { runCatching { repository.setWashWaterTemperature(it) } } },
+            onDustCollectionFrequencyChange = { scope.launch { runCatching { repository.setDustCollectionFrequency(it) } } },
+            onCollisionAvoidChange = { scope.launch { runCatching { repository.setCollisionAvoidStatus(it) } } },
+            onCarpetFirstChange = { scope.launch { runCatching { repository.setCarpetFirstSwitch(it) } } },
+            onCarpetCrossChange = { scope.launch { runCatching { repository.setCarpetCrossSwitch(it) } } },
+            onCarpetDeepCleanChange = { scope.launch { runCatching { repository.setCarpetDeepClean(it) } } },
             onValleyElectricity = {
                 scope.launch { runCatching { repository.fetchValleySettings() } }
                 route = SettingsRoute.ValleyElectricity
@@ -876,6 +883,12 @@ private fun DockSettingsScreen(
     onWashIntervalChange: (Int) -> Unit,
     onAutoEmptyModeChange: (Int) -> Unit,
     onMopDryingChange: (Boolean) -> Unit,
+    onWashWaterTemperatureChange: (Int) -> Unit,
+    onDustCollectionFrequencyChange: (Int) -> Unit,
+    onCollisionAvoidChange: (Int) -> Unit,
+    onCarpetFirstChange: (Boolean) -> Unit,
+    onCarpetCrossChange: (Boolean) -> Unit,
+    onCarpetDeepCleanChange: (Boolean) -> Unit,
     onValleyElectricity: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -967,10 +980,78 @@ private fun DockSettingsScreen(
                     onClick = onValleyElectricity,
                 )
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DockSettingCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.WaterDrop,
+                    iconTint = AppColors.Water,
+                    title = "Wash water temperature",
+                    value = dockSettings.washWaterTemperature?.let { DockOptions.washWaterTemperature.labelFor(it) }
+                        ?: "Unknown",
+                    onClick = { if (dockSettings.washWaterTemperature != null) dialogTarget = "wash_temp" },
+                )
+                DockSettingCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Delete,
+                    iconTint = AppColors.Good,
+                    title = "Auto-empty frequency",
+                    value = dockSettings.dustCollectionFrequency?.let { DockOptions.dustCollectionFrequency.labelFor(it) }
+                        ?: "Unknown",
+                    onClick = { if (dockSettings.dustCollectionFrequency != null) dialogTarget = "dust_frequency" },
+                )
+            }
+            DockSettingCard(
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Default.Shield,
+                iconTint = AppColors.AccentPurple,
+                title = "Obstacle avoidance",
+                value = dockSettings.collisionAvoidStatus?.let { DockOptions.collisionAvoidance.labelFor(it) }
+                    ?: "Unknown",
+                onClick = { if (dockSettings.collisionAvoidStatus != null) dialogTarget = "collision_avoid" },
+            )
+            CarpetSwitchRow(
+                title = "Lift mop for carpets first",
+                subtitle = "Vacuum carpets with the mop lifted before cleaning the rest of the floor",
+                value = dockSettings.carpetFirstSwitch,
+                onChange = onCarpetFirstChange,
+            )
+            CarpetSwitchRow(
+                title = "Cross carpets with mop lifted",
+                subtitle = "Lift the mop cloths when crossing carpets or door sills",
+                value = dockSettings.carpetCrossSwitch,
+                onChange = onCarpetCrossChange,
+            )
+            CarpetSwitchRow(
+                title = "Carpet deep clean",
+                subtitle = "Clean carpets separately, room by room, after the main clean",
+                value = dockSettings.carpetDeepClean,
+                onChange = onCarpetDeepCleanChange,
+            )
         }
     }
 
     when (dialogTarget) {
+        "wash_temp" -> DockChoiceDialog(
+            title = "Wash water temperature",
+            choices = DockOptions.washWaterTemperature,
+            selectedCode = dockSettings.washWaterTemperature ?: -1,
+            onSelect = onWashWaterTemperatureChange,
+            onDismiss = { dialogTarget = null },
+        )
+        "dust_frequency" -> DockChoiceDialog(
+            title = "Auto-empty frequency",
+            choices = DockOptions.dustCollectionFrequency,
+            selectedCode = dockSettings.dustCollectionFrequency ?: -1,
+            onSelect = onDustCollectionFrequencyChange,
+            onDismiss = { dialogTarget = null },
+        )
+        "collision_avoid" -> DockChoiceDialog(
+            title = "Obstacle avoidance",
+            choices = DockOptions.collisionAvoidance,
+            selectedCode = dockSettings.collisionAvoidStatus ?: -1,
+            onSelect = onCollisionAvoidChange,
+            onDismiss = { dialogTarget = null },
+        )
         "wash_freq" -> DockChoiceDialog(
             title = "Mop wash frequency",
             choices = washIntervalChoices(dockSettings.washInterval),
@@ -992,6 +1073,32 @@ private fun DockSettingsScreen(
             onSelect = onAutoEmptyModeChange,
             onDismiss = { dialogTarget = null },
         )
+    }
+}
+
+/**
+ * A carpet toggle with no confirmed getter (see fetchDockSettings): [value] is null until this
+ * session has set it, in which case the switch shows off rather than an unknown state silently
+ * reading as on.
+ */
+@Composable
+private fun CarpetSwitchRow(title: String, subtitle: String, value: Boolean?, onChange: (Boolean) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = value == true, onCheckedChange = onChange)
+        }
     }
 }
 

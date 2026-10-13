@@ -14,6 +14,14 @@ data class DockSettings(
     val autoEmptyMode: Int = 0, // robot code: 0=smart, 1=light, 2=balanced, 4=max (see DockOptions)
     val mopDrying: Boolean? = null, // automatic mop drying; null until the robot has answered
     val dryTimeSeconds: Int? = null, // how long a drying run lasts, as the robot reports it
+    val washWaterTemperature: Int? = null, // robot code: 0=room, 1=warm, 2=hot (see DockOptions); null until read
+    val dustCollectionFrequency: Int? = null, // the dock's auto-empty frequency; null until read
+    val carpetFirstSwitch: Boolean? = null, // lift mop to vacuum carpets before the rest of the floor
+    val carpetCrossSwitch: Boolean? = null, // cross carpets and door sills with the mop lifted
+    val carpetDeepClean: Boolean? = null, // clean carpets separately, room by room, after the main clean
+    // Reactive obstacle avoidance: the official app's on/off switch and its None/Balanced/Sensitive
+    // "Less Collision Mode" submenu both read and write this same robot code (see DockOptions).
+    val collisionAvoidStatus: Int? = null,
     val features: DeviceFeatures? = null, // what the robot reports it supports; null until read
 )
 

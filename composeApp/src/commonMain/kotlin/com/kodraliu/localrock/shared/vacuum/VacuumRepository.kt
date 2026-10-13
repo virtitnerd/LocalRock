@@ -887,6 +887,17 @@ class VacuumRepository(
                 _dockSettings.update { it.copy(mopDrying = status == 1, dryTimeSeconds = seconds) }
             }
         }
+
+        int(runCatching { session.getWashWaterTemperature() }.getOrNull(), "values")
+            ?.let { _dockSettings.update { s -> s.copy(washWaterTemperature = it) } }
+        int(runCatching { session.getDustCollectionSwitchStatus() }.getOrNull(), "status")
+            ?.let { _dockSettings.update { s -> s.copy(dustCollectionFrequency = it) } }
+        int(runCatching { session.getCollisionAvoidStatus() }.getOrNull(), "status")
+            ?.let { _dockSettings.update { s -> s.copy(collisionAvoidStatus = it) } }
+
+        // app_set_priority_carpet_cleaning_status, app_set_cross_carpet_cleaning_status and
+        // app_set_carpet_deep_clean_status have no matching getter found in the official app's own
+        // source, so these three stay null (shown as "Unknown") until set from here or found elsewhere.
     }
 
     suspend fun setWashMode(mode: Int) {
@@ -903,6 +914,36 @@ class VacuumRepository(
     suspend fun setMopDrying(enabled: Boolean) {
         session.setDryerSetting(enabled)
         _dockSettings.update { it.copy(mopDrying = enabled) }
+    }
+
+    suspend fun setWashWaterTemperature(value: Int) {
+        session.setWashWaterTemperature(value)
+        _dockSettings.update { it.copy(washWaterTemperature = value) }
+    }
+
+    suspend fun setDustCollectionFrequency(value: Int) {
+        session.setDustCollectionSwitchStatus(value)
+        _dockSettings.update { it.copy(dustCollectionFrequency = value) }
+    }
+
+    suspend fun setCollisionAvoidStatus(value: Int) {
+        session.setCollisionAvoidStatus(value)
+        _dockSettings.update { it.copy(collisionAvoidStatus = value) }
+    }
+
+    suspend fun setCarpetFirstSwitch(on: Boolean) {
+        session.setCarpetFirstSwitch(on)
+        _dockSettings.update { it.copy(carpetFirstSwitch = on) }
+    }
+
+    suspend fun setCarpetCrossSwitch(on: Boolean) {
+        session.setCarpetCrossSwitch(on)
+        _dockSettings.update { it.copy(carpetCrossSwitch = on) }
+    }
+
+    suspend fun setCarpetDeepClean(on: Boolean) {
+        session.setCarpetDeepClean(on)
+        _dockSettings.update { it.copy(carpetDeepClean = on) }
     }
 
     private val _valleySettings = MutableStateFlow<ValleySettings?>(null)

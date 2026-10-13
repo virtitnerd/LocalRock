@@ -129,6 +129,21 @@ class DockOptionsTest {
     }
 
     @Test
+    fun the_new_dock_option_lists_match_the_screenshots_confirmed_value() {
+        // A robot reporting 2 for wash water temperature was seen with "Hot water" selected; a
+        // robot reporting 1 for collision avoidance was seen with "Balanced" selected.
+        assertEquals("Hot water", DockOptions.washWaterTemperature.labelFor(2))
+        assertEquals("Balanced", DockOptions.collisionAvoidance.labelFor(1))
+    }
+
+    @Test
+    fun codes_in_the_new_option_lists_are_unique() {
+        for (list in listOf(DockOptions.washWaterTemperature, DockOptions.collisionAvoidance, DockOptions.dustCollectionFrequency)) {
+            assertEquals(list.size, list.map { it.code }.toSet().size)
+        }
+    }
+
+    @Test
     fun answers_are_read_whether_the_robot_wraps_them_in_a_list_or_not() {
         // Both shapes occur; python-roborock unwraps either.
         val bare = Json.parseToJsonElement("""{"mode":4}""").asAnswerObject()
