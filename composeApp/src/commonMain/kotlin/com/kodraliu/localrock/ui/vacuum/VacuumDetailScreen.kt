@@ -10,7 +10,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
@@ -219,6 +218,7 @@ fun VacuumDetailScreen(
     val busy by viewModel.busy.collectAsState()
     val mapRotation by viewModel.mapRotation.collectAsState()
     val map3DYaw by viewModel.map3DYaw.collectAsState()
+    val map3DTilt by viewModel.map3DTilt.collectAsState()
     val map3D by viewModel.map3D.collectAsState()
     val parsedMap by viewModel.repository.parsedMap.collectAsState()
     val floorMaps by viewModel.repository.floorMaps.collectAsState()
@@ -322,6 +322,8 @@ fun VacuumDetailScreen(
                 rotationDegrees = mapRotation,
                 yaw3D = map3DYaw,
                 onYaw3DChange = { viewModel.setMap3DYaw(it) },
+                tilt3D = map3DTilt,
+                onTilt3DChange = { viewModel.setMap3DTilt(it) },
                 is3D = map3D,
                 onLoadMap = { viewModel.refreshMap() },
                 onRecover = { showRecoverSheet = true },
@@ -585,6 +587,8 @@ private fun MapHeroSection(
     rotationDegrees: Int,
     yaw3D: Float,
     onYaw3DChange: (Float) -> Unit,
+    tilt3D: Float,
+    onTilt3DChange: (Float) -> Unit,
     is3D: Boolean,
     onLoadMap: () -> Unit,
     onRecover: () -> Unit,
@@ -616,6 +620,8 @@ private fun MapHeroSection(
                 // The two views keep separate headings, so turning the 3D model never moves the 2D map.
                 yawDegrees = if (is3D) yaw3D else rotationDegrees.toFloat(),
                 onYawChange = onYaw3DChange,
+                tiltDegrees = tilt3D,
+                onTiltChange = onTilt3DChange,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -756,12 +762,12 @@ private fun SessionRoomsBadge(roomNames: List<String>, modifier: Modifier = Modi
     }
 }
 
-// How edge-on the 3D camera sits: 1 looks straight down (the flat 2D map), 0 is level with the floor.
-private const val TILT_3D = 0.6f
 // Stylised, not to scale: tall enough that walls read as walls instead of thin borders.
 private const val WALL_HEIGHT_CELLS = 7f
-private const val MIN_ZOOM = 0.6f
+private const val MIN_ZOOM = 0.4f
 private const val MAX_ZOOM = 8f
+// Degrees of tilt per screen pixel two fingers are dragged vertically; a full-screen drag is about 70°.
+private const val TILT_DEGREES_PER_PX = 0.05f
 
 private fun DrawScope.drawMapLayer(image: ImageBitmap, view: MapView, height: Float, quality: FilterQuality) {
     withTransform({
@@ -792,10 +798,17 @@ private fun VacuumMapImage(
     is3D: Boolean,
     yawDegrees: Float,
     onYawChange: (Float) -> Unit,
+    tiltDegrees: Float,
+    onTiltChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bitmap = rememberMapBitmap(map)
-    val (wallSide, wallTop) = rememberWallBitmaps(map)
+    // Drawn larger than the grid so a zoomed-in view stays crisp; every length below that is measured
+    // in the layers' own pixels (wall height, label lift) is in cells times this.
+    val scale = remember(map) { supersampleFor(map) }
+    val (bitmap, overlayBitmap) = rememberMapLayers(map, scale)
+    val (wallSide, wallTop) = rememberWallBitmaps(map, scale)
+    val selectionBitmap = rememberSelectionBitmap(map, selectedRoomIds, scale)
+    val wallHeight = WALL_HEIGHT_CELLS * scale
     val labelRooms = remember(map.rooms) { map.rooms.filter { it.labelNormX != null && it.labelNormY != null } }
     val textMeasurer = rememberTextMeasurer()
     // Labels follow the scheme rather than being a fixed black scrim: over a light map a dark
@@ -812,19 +825,22 @@ private fun VacuumMapImage(
     val currentOnRoomTap by rememberUpdatedState(onRoomTap)
     val currentYaw by rememberUpdatedState(yawDegrees)
     val currentOnYawChange by rememberUpdatedState(onYawChange)
+    val currentTilt by rememberUpdatedState(tiltDegrees)
+    val currentOnTiltChange by rememberUpdatedState(onTiltChange)
 
     // A parsed map is mostly blank grid, so frame the floor plan rather than the padding around it.
     val bounds = remember(map) { map.contentBoundsNorm() }
     // Each view starts framed, and keeps its own zoom and position while it is showing.
     var zoom by remember(map, is3D) { mutableStateOf(1f) }
     var pan by remember(map, is3D) { mutableStateOf(Offset.Zero) }
-    val squash = if (is3D) TILT_3D else 1f
 
     fun viewFor(width: Float, height: Float): MapView {
+        // Fitted as if looking straight down, so the plan keeps its size as the camera is tilted
+        // instead of shrinking and growing under the fingers.
         val fit = fitScale(
             width, height,
             bounds.width * bitmap.width, bounds.height * bitmap.height,
-            currentYaw, squash, freeTurning = is3D,
+            currentYaw, squash = 1f, freeTurning = is3D,
         ) * (if (is3D) 1.1f else 1f)
         return MapView(
             canvasW = width,
@@ -834,7 +850,7 @@ private fun VacuumMapImage(
             k = fit * zoom,
             pan = pan,
             yawDegrees = currentYaw,
-            squash = squash,
+            squash = if (is3D) squashForTilt(currentTilt) else 1f,
         )
     }
 
@@ -844,13 +860,16 @@ private fun VacuumMapImage(
                 .fillMaxSize()
                 .clipToBounds()
                 .pointerInput(map, is3D) {
-                    // Pinch zooms about the fingers, one finger pans, and in 3D a two-finger twist
-                    // turns the model — any angle, not just quarter turns. The flat map keeps the
-                    // heading chosen with the rotate button; twisting it does nothing.
-                    detectTransformGestures { centroid, panChange, zoomChange, rotation ->
+                    // Pinch zooms about the fingers. In 3D the model behaves like a maps app's 3D
+                    // view: one finger moves it, a two-finger twist turns it to any heading, and two
+                    // fingers dragged up or down together tip the camera. The flat map keeps the
+                    // heading chosen with the rotate button, and two fingers pan it.
+                    detectMapGestures { centroid, panChange, zoomChange, rotation, fingers ->
                         val newZoom = (zoom * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
+                        val tilting = is3D && fingers >= 2
                         val center = Offset(size.width / 2f, size.height / 2f)
-                        val moved = (centroid - center) - ((centroid - center) - pan) * (newZoom / zoom) + panChange
+                        val moved = (centroid - center) - ((centroid - center) - pan) * (newZoom / zoom) +
+                            (if (tilting) Offset.Zero else panChange)
                         // Loose clamp so the plan can't be flung entirely out of reach.
                         pan = Offset(
                             moved.x.coerceIn(-size.width.toFloat(), size.width.toFloat()),
@@ -858,6 +877,8 @@ private fun VacuumMapImage(
                         )
                         zoom = newZoom
                         if (is3D && rotation != 0f) currentOnYawChange(currentYaw + rotation)
+                        // Dragging up tips the camera toward the horizon, as in a maps app.
+                        if (tilting && panChange.y != 0f) currentOnTiltChange(currentTilt - panChange.y * TILT_DEGREES_PER_PX)
                     }
                 }
                 .pointerInput(map, is3D) {
@@ -878,16 +899,22 @@ private fun VacuumMapImage(
                 },
         ) {
             val view = viewFor(size.width, size.height)
-            // Quarter turns of the flat map stay pixel-crisp; anything between needs smoothing.
-            val quality = if (is3D || yawDegrees % 90f != 0f) FilterQuality.Low else FilterQuality.None
+            // Magnified past 2 screen pixels per layer pixel, nearest-neighbour keeps edges crisp
+            // where smoothing would blur them; so does a flat quarter-turn, which maps pixels 1:1.
+            // Zoomed out, where many pixels share one on screen, smoothing avoids shimmer.
+            val quality = if ((!is3D && yawDegrees % 90f == 0f) || view.k >= 2f) FilterQuality.None else FilterQuality.Low
             drawMapLayer(bitmap, view, 0f, quality)
+            // A selected room is tinted over the floor, and the path goes over the tint, so the
+            // choice reads at a glance without hiding where the robot has been.
+            selectionBitmap?.let { drawMapLayer(it, view, 0f, quality) }
+            drawMapLayer(overlayBitmap, view, 0f, quality)
             if (is3D) {
                 // Walls rise by stacking the wall layer at climbing heights, then capping it with the
                 // lighter top. Each layer goes through the same transform as the floor, so the
                 // extrusion lines up at every heading.
-                val steps = (WALL_HEIGHT_CELLS * view.k * view.lift / 1.5f).toInt().coerceIn(2, 30)
-                for (i in 1..steps) drawMapLayer(wallSide, view, WALL_HEIGHT_CELLS * i / steps, quality)
-                drawMapLayer(wallTop, view, WALL_HEIGHT_CELLS, quality)
+                val steps = (wallHeight * view.k * view.lift / 1.5f).toInt().coerceIn(2, 30)
+                for (i in 1..steps) drawMapLayer(wallSide, view, wallHeight * i / steps, quality)
+                drawMapLayer(wallTop, view, wallHeight, quality)
             }
 
             // Labels are placed through the map's own transform, so they stay on their rooms through
@@ -900,7 +927,7 @@ private fun VacuumMapImage(
                 val at = view.toScreen(
                     normX * bitmap.width,
                     normY * bitmap.height,
-                    height = if (is3D) WALL_HEIGHT_CELLS * 0.5f else 0f,
+                    height = if (is3D) wallHeight * 0.5f else 0f,
                 )
                 val cx = at.x
                 val cy = at.y
@@ -929,21 +956,6 @@ private fun VacuumMapImage(
             }
         }
 
-        if (zoom > 1.05f) {
-            Surface(
-                // Bottom centre: the top corners already hold the floor picker and the 2D/rotate buttons.
-                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                color = Color.Black.copy(alpha = 0.6f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    "${(zoom * 100).toInt()}%",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                )
-            }
-        }
     }
 }
 
