@@ -851,7 +851,7 @@ private fun SessionRoomsBadge(roomNames: List<String>, modifier: Modifier = Modi
 }
 
 @Composable
-private fun VacuumMapImage(
+internal fun VacuumMapImage(
     map: ParsedMap,
     selectedRoomIds: List<Int>,
     onRoomTap: (Int) -> Unit,
@@ -2567,3 +2567,4 @@ private fun stateTint(state: Int?): Color = when (state) {
     VacuumStateCodes.GOING_TO_TARGET, VacuumStateCodes.MAPPING -> MaterialTheme.colorScheme.primary
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
+
