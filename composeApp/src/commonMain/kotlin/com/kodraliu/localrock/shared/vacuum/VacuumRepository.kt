@@ -240,7 +240,7 @@ class VacuumRepository(
                 delay(
                     when {
                         !loaded -> MAP_RETRY_MS
-                        _status.value.state in ACTIVE_STATES -> MAP_FAST_POLL_MS
+                        _status.value.state in ACTIVE_STATES -> MAP_LIVE_POLL_MS
                         else -> MAP_IDLE_POLL_MS
                     }
                 )
@@ -1564,6 +1564,9 @@ class VacuumRepository(
         val HEX = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
         val ConsumableJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
         const val MAP_FAST_POLL_MS = 8_000L
+
+        /** While the robot is working: the sprite glides between these fixes (RobotGlide.kt), so they can be a few seconds apart. */
+        const val MAP_LIVE_POLL_MS = 3_000L
         const val MAP_IDLE_POLL_MS = 60_000L
         const val MAP_RETRY_MS = 5_000L
         /** Map requests after a floor switch, [MAP_FAST_POLL_MS] apart: about a minute and a half. */

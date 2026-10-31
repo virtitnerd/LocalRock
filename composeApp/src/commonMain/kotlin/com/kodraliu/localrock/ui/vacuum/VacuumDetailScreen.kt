@@ -993,6 +993,7 @@ internal fun VacuumMapImage(
     LaunchedEffect(identity, is3D) { mapViewport.frameIfNeeded(identity to is3D) }
     // The gesture handlers outlive a live update, so they read the current map and view, not the ones they started with.
     val currentMap by rememberUpdatedState(map)
+    val glidingRobot = rememberGlidingRobot(map.robotMm)
     val currentBitmap by rememberUpdatedState(bitmap)
 
     fun viewFor(width: Float, height: Float): MapView {
@@ -1078,7 +1079,7 @@ internal fun VacuumMapImage(
             // choice reads at a glance without hiding where the robot has been.
             selectionBitmap?.let { drawMapLayer(it, view, 0f, quality) }
             drawMapLayer(overlayBitmap, view, 0f, quality)
-            drawRouteAndMarkers(map, view, scale, darkMap)
+            drawRouteAndMarkers(map, view, scale, darkMap, glidingRobot.value)
             if (is3D && walls != null) {
                 val (wallSide, wallTop) = walls
                 // Walls rise by stacking the wall layer at climbing heights, then capping it with the
