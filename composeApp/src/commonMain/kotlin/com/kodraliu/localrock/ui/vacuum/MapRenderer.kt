@@ -511,7 +511,7 @@ private fun drawMarker(
         canvas.drawPath(house, Paint().apply { this.color = Color.White })
     } else {
         canvas.drawCircle(Offset(cellX, cellY), radius + 1.5f, ringPaint)
-        drawRobotBody(canvas, Offset(cellX, cellY), radius, headingDegrees, color)
+        drawRobotBody(canvas, Offset(cellX, cellY), radius, headingDegrees)
     }
 }
 
@@ -519,7 +519,9 @@ private fun drawMarker(
  * The robot seen from above, turned to its heading: a disc with an inner ring, the bin cover across its back,
  * the lidar turret ahead of centre and the button ahead of that. Proportions are python-roborock's.
  */
-private fun drawRobotBody(canvas: Canvas, c: Offset, r: Float, headingDegrees: Float, ink: Color) {
+private fun drawRobotBody(canvas: Canvas, c: Offset, r: Float, headingDegrees: Float) {
+    // A white shell with slate detail, as the robot looks from above, whatever the palette.
+    val ink = Color(0xFF455A64)
     val unit = r / 16f
     val line = r * 0.09f
     fun stroke(color: Color) = Paint().apply { this.color = color; style = PaintingStyle.Stroke; strokeWidth = line }
