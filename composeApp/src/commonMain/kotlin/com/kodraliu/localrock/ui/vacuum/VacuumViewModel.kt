@@ -51,9 +51,7 @@ class VacuumViewModel(
     val modelDisplayName: String? = productDisplayName(container.deviceRepository.productsByDuid.value[duid])
     val firmwareVersion: String? = device.fv
     private val serverFeatureSet = device.newFeatureSet
-    val supportsSmartPlan: Boolean = isSmartPlanSupported(device.newFeatureSet)
     val supportsFastRoute: Boolean = isFastRouteSupported(device.newFeatureSet)
-    val supportsWaterSlide: Boolean = isWaterSlideSupported(device.newFeatureSet)
     val dockCapabilities = DockCapabilities(modelName, device.featureSet, device.newFeatureSet)
     val betaFeatureDefs = supportedBetaFeatures(device.newFeatureSet)
     val unlistedFeatures = unlistedAdvertisedFeatures(device.newFeatureSet)

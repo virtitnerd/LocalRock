@@ -101,6 +101,8 @@ fun ScheduleScreen(
     val scope = rememberCoroutineScope()
     val timers by repository.timers.collectAsState()
     val rooms by repository.rooms.collectAsState()
+    val supportsSmartPlan by viewModel.supportsSmartPlan.collectAsState()
+    val supportsWaterSlide by viewModel.supportsWaterSlide.collectAsState()
     val maps by repository.floorMaps.collectAsState()
     val map by repository.parsedMap.collectAsState()
     val currentFlag by repository.currentFloorFlag.collectAsState()
@@ -200,9 +202,9 @@ fun ScheduleScreen(
     if (showAddDialog) {
         TimerDialog(
             initial = null,
-            supportsSmartPlan = viewModel.supportsSmartPlan,
+            supportsSmartPlan = supportsSmartPlan,
             supportsFastRoute = viewModel.supportsFastRoute,
-            supportsWaterSlide = viewModel.supportsWaterSlide,
+            supportsWaterSlide = supportsWaterSlide,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
             onSave = { hour, minute, weekdays, settings, once, _, _, _ ->
                 showAddDialog = false
@@ -215,9 +217,9 @@ fun ScheduleScreen(
     editing?.let { timer ->
         TimerDialog(
             initial = timer,
-            supportsSmartPlan = viewModel.supportsSmartPlan,
+            supportsSmartPlan = supportsSmartPlan,
             supportsFastRoute = viewModel.supportsFastRoute,
-            supportsWaterSlide = viewModel.supportsWaterSlide,
+            supportsWaterSlide = supportsWaterSlide,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
             onSave = { hour, minute, weekdays, settings, once, settingsChanged, timingChanged, enabled ->
                 editing = null
@@ -384,7 +386,7 @@ private fun TimerDialog(
                         ScheduleRow("Cleaning Mode", if (initial != null && !settingsChanged) start.kind.label() else kind.label()) { sheet = "mode" }
                         ScheduleRow("Map", mapName) { sheet = "rooms" }
                         if (map != null) VacuumMapImage(map, if (wholeHome) emptyList() else selected,
-                            onRoomTap = { sheet = "rooms" }, modifier = Modifier.fillMaxWidth().height(220.dp))
+                            onRoomTap = { sheet = "rooms" }, onObstacleTap = {}, is3D = false, yawDegrees = 0f, onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
                         Text(if (wholeHome) "Entire map" else selected.joinToString(", ") { id -> rooms.firstOrNull { it.id == id }?.name ?: "Room $id" },
                             modifier = Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.bodyMedium)
                         Text("Preview: currently loaded map", style = MaterialTheme.typography.labelSmall)
@@ -538,7 +540,7 @@ private fun TimerDialog(
                             }
                             if (map != null) VacuumMapImage(map, draftRooms, onRoomTap = { id ->
                                 if (rooms.any { it.id == id }) draftRooms = if (id in draftRooms) draftRooms - id else draftRooms + id
-                            }, modifier = Modifier.fillMaxWidth().height(220.dp))
+                            }, onObstacleTap = {}, is3D = false, yawDegrees = 0f, onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
                             if (rooms.isEmpty()) Text("No rooms loaded. Open the vacuum map, then return here.")
                             rooms.forEach { room ->
                                 Row(Modifier.fillMaxWidth().clickable { draftRooms = if (room.id in draftRooms) draftRooms - room.id else draftRooms + room.id }, verticalAlignment = Alignment.CenterVertically) {

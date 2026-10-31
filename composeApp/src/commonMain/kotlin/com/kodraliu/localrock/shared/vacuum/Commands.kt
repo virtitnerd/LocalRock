@@ -215,7 +215,6 @@ suspend fun VacuumSession.getSmartWashParams(): V1Response = sendCommand("get_sm
 suspend fun VacuumSession.setSmartWashParams(settings: SmartWashSettings): V1Response =
     sendCommandRaw("set_smart_wash_params", encodeSmartWashParams(settings))
 
-suspend fun VacuumSession.getInitStatus(): V1Response = sendCommand("app_get_init_status")
 suspend fun VacuumSession.getDryerSetting(): V1Response = sendCommand("app_get_dryer_setting")
 
 suspend fun VacuumSession.setDryerSetting(body: JsonObject): V1Response = sendCommandRaw("app_set_dryer_setting", body)
