@@ -366,7 +366,7 @@ private fun drawOverlays(canvas: Canvas, map: ParsedMap, palette: MapPalette, dr
 // Square dock, round robot: the two markers stay distinguishable without relying on colour.
 private fun drawMarkers(canvas: Canvas, map: ParsedMap, palette: MapPalette, yaw: Float = 0f, squash: Float = 1f) {
     map.chargerMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.charger, palette.markerRing, square = true) } }
-    map.robotMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.robot, palette.markerRing, square = false, headingDegrees = p.angle.toFloat()) } }
+    map.robotMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.robot, palette.markerRing, square = false, headingDegrees = p.angle + 180f) } }
 }
 
 /** Draws a marker undoing the map's turn and tilt around its own spot, so it stays upright on screen. */
