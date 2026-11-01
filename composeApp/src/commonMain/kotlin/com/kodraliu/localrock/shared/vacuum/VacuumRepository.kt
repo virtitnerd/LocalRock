@@ -490,6 +490,12 @@ class VacuumRepository(
                 areaMm2 = element["area"]?.jsonPrimitive?.longOrNull ?: 0L,
                 errorCode = element["error"]?.jsonPrimitive?.intOrNull ?: 0,
                 complete = element["complete"]?.jsonPrimitive?.intOrNull ?: 0,
+                startType = element["start_type"]?.jsonPrimitive?.intOrNull ?: 0,
+                cleanType = element["clean_type"]?.jsonPrimitive?.intOrNull ?: 0,
+                finishReason = element["finish_reason"]?.jsonPrimitive?.intOrNull ?: 0,
+                dustCollected = element["dust_collection_status"]?.jsonPrimitive?.intOrNull == 1,
+                washCount = element["wash_count"]?.jsonPrimitive?.intOrNull ?: 0,
+                cleanedAreaMm2 = element["cleaned_area"]?.jsonPrimitive?.longOrNull,
             )
             else -> null
         }
@@ -1506,11 +1512,18 @@ class VacuumRepository(
      * turn with the live map, since the session tracks one map request at a time.
      */
     suspend fun fetchSavedMap(mapFlag: Int, backup: Boolean): ParsedMap = mapFetchMutex.withLock {
-        val resp = session.fetchSavedMap(createSecurityData(rriotKeyProvider()), mapFlag, backup)
-        runCatching { parseB01Map(resp.data) }.getOrNull()
-            ?: runCatching { parseLegacyMap(resp.data) }.getOrNull()
-            ?: throw MapEditException("The robot sent a map this app can't read")
+        readMap(session.fetchSavedMap(createSecurityData(rriotKeyProvider()), mapFlag, backup).data)
     }
+
+    /** The map the robot drew for the run that began at [beginEpoch], for the history page. */
+    suspend fun fetchCleanRecordMap(beginEpoch: Long): ParsedMap = mapFetchMutex.withLock {
+        readMap(session.fetchCleanRecordMap(createSecurityData(rriotKeyProvider()), beginEpoch).data)
+    }
+
+    private fun readMap(data: ByteArray): ParsedMap =
+        runCatching { parseB01Map(data) }.getOrNull()
+            ?: runCatching { parseLegacyMap(data) }.getOrNull()
+            ?: throw MapEditException("The robot sent a map this app can't read")
 
     private val photoMutex = Mutex()
     private val obstaclePhotos = mutableMapOf<String, ByteArray>()
