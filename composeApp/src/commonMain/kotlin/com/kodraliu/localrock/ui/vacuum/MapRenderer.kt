@@ -364,9 +364,9 @@ private fun drawOverlays(canvas: Canvas, map: ParsedMap, palette: MapPalette, dr
 }
 
 // Square dock, round robot: the two markers stay distinguishable without relying on colour.
-private fun drawMarkers(canvas: Canvas, map: ParsedMap, palette: MapPalette, yaw: Float = 0f, squash: Float = 1f, robot: ParsedMapPoint? = map.robotMm) {
+private fun drawMarkers(canvas: Canvas, map: ParsedMap, palette: MapPalette, yaw: Float = 0f, squash: Float = 1f) {
     map.chargerMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.charger, palette.markerRing, square = true) } }
-    robot?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.robot, palette.markerRing, square = false, headingDegrees = p.angle + 180f) } }
+    map.robotMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.robot, palette.markerRing, square = false, headingDegrees = p.angle + 180f) } }
 }
 
 /** Draws a marker undoing the map's turn and tilt around its own spot, so it stays upright on screen. */
@@ -386,7 +386,7 @@ private inline fun upright(canvas: Canvas, map: ParsedMap, point: ParsedMapPoint
  * The route and the two markers, drawn straight to the screen through the map's transform instead of
  * into a bitmap, so they stay sharp at any zoom. [scale] is how many layer pixels make one cell.
  */
-internal fun DrawScope.drawRouteAndMarkers(map: ParsedMap, view: MapView, scale: Int, dark: Boolean, robot: ParsedMapPoint? = map.robotMm) {
+internal fun DrawScope.drawRouteAndMarkers(map: ParsedMap, view: MapView, scale: Int, dark: Boolean) {
     val palette = if (dark) DarkPalette else LightPalette
     withTransform({
         // The same matrix as the floor, so the route lies on the rooms it ran over at any heading and tilt.
@@ -394,7 +394,7 @@ internal fun DrawScope.drawRouteAndMarkers(map: ParsedMap, view: MapView, scale:
         scale(scale.toFloat(), scale.toFloat(), Offset.Zero)
     }) {
         if (map.pathMm.size >= 2) drawPath(drawContext.canvas, map, palette)
-        drawMarkers(drawContext.canvas, map, palette, view.yawDegrees, view.squash, robot)
+        drawMarkers(drawContext.canvas, map, palette, view.yawDegrees, view.squash)
     }
 }
 
