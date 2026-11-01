@@ -2,6 +2,7 @@ package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,6 +96,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -300,6 +302,7 @@ fun VacuumSettingsScreen(
             HistoryScreen(
                 records = cleanHistory,
                 summary = cleanSummary,
+                loadMap = { repository.fetchCleanRecordMap(it) },
                 onRefresh = {
                     scope.launch {
                         runCatching { repository.fetchCleanHistory() }
@@ -359,6 +362,7 @@ fun VacuumHistoryScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     HistoryScreen(
         records = cleanHistory,
         summary = cleanSummary,
+        loadMap = { repository.fetchCleanRecordMap(it) },
         onRefresh = {
             scope.launch {
                 runCatching { repository.fetchCleanHistory() }
@@ -871,6 +875,7 @@ private fun ConsumableItem(
 private fun HistoryScreen(
     records: List<CleanRecord>,
     summary: CleanSummary?,
+    loadMap: suspend (beginEpoch: Long) -> ParsedMap,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -895,7 +900,7 @@ private fun HistoryScreen(
     ) { padding ->
         CenteredContent {
             if (open != null) {
-                CleanRecordDetail(open, Modifier.padding(padding))
+                CleanRecordDetail(open, loadMap, Modifier.padding(padding))
             } else if (records.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(
@@ -999,10 +1004,34 @@ private fun CleanRecordRow(record: CleanRecord, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CleanRecordDetail(record: CleanRecord, modifier: Modifier = Modifier) {
+private fun CleanRecordDetail(
+    record: CleanRecord,
+    loadMap: suspend (beginEpoch: Long) -> ParsedMap,
+    modifier: Modifier = Modifier,
+) {
     val done = record.complete == 1
     val tags = cleanRecordTags(record)
+    var map by remember(record.beginEpoch) { mutableStateOf<ParsedMap?>(null) }
+    var failed by remember(record.beginEpoch) { mutableStateOf(false) }
+    LaunchedEffect(record.beginEpoch) {
+        runCatching { loadMap(record.beginEpoch) }.onSuccess { map = it }.onFailure { failed = true }
+    }
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                map != null -> SavedMapImage(map!!, Modifier.fillMaxSize().padding(8.dp))
+                failed -> Text("Couldn't load this run's map", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            }
+        }
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant,

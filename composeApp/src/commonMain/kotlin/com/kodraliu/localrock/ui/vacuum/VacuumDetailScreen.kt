@@ -2399,7 +2399,7 @@ private fun SavedMapPreview(label: String, map: ParsedMap?, failed: Boolean, mod
 
 /** The floor plan of [map], cut to the part that holds floor and fitted into the space. */
 @Composable
-private fun SavedMapImage(map: ParsedMap, modifier: Modifier = Modifier) {
+internal fun SavedMapImage(map: ParsedMap, modifier: Modifier = Modifier) {
     val bitmap = rememberMapBitmap(map)
     val bounds = remember(map) { map.contentBoundsNorm() }
     Canvas(modifier) {
