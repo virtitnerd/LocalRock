@@ -159,6 +159,7 @@ fun VacuumSettingsScreen(
     onBack: () -> Unit,
 ) {
     val repository = viewModel.repository
+    val mapRotation by viewModel.mapRotation.collectAsState()
     var route by remember { mutableStateOf<SettingsRoute>(SettingsRoute.Root) }
     // Sub-pages are local state, not nav destinations, so system back would leave Settings (#52).
     BackHandler(enabled = route != SettingsRoute.Root) {
@@ -303,6 +304,7 @@ fun VacuumSettingsScreen(
                 records = cleanHistory,
                 summary = cleanSummary,
                 loadMap = { repository.fetchCleanRecordMap(it) },
+                mapRotation = mapRotation,
                 onRefresh = {
                     scope.launch {
                         runCatching { repository.fetchCleanHistory() }
@@ -352,6 +354,7 @@ fun VacuumPinGoScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
 @Composable
 fun VacuumHistoryScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     val repository = viewModel.repository
+    val mapRotation by viewModel.mapRotation.collectAsState()
     val scope = rememberCoroutineScope()
     val cleanHistory by repository.cleanHistory.collectAsState()
     val cleanSummary by repository.cleanSummary.collectAsState()
@@ -363,6 +366,7 @@ fun VacuumHistoryScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         records = cleanHistory,
         summary = cleanSummary,
         loadMap = { repository.fetchCleanRecordMap(it) },
+        mapRotation = mapRotation,
         onRefresh = {
             scope.launch {
                 runCatching { repository.fetchCleanHistory() }
@@ -920,6 +924,7 @@ private fun HistoryScreen(
     records: List<CleanRecord>,
     summary: CleanSummary?,
     loadMap: suspend (beginEpoch: Long) -> ParsedMap,
+    mapRotation: Int,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -944,7 +949,7 @@ private fun HistoryScreen(
     ) { padding ->
         CenteredContent {
             if (open != null) {
-                CleanRecordDetail(open, loadMap, Modifier.padding(padding))
+                CleanRecordDetail(open, loadMap, mapRotation, Modifier.padding(padding))
             } else if (records.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(
@@ -1051,6 +1056,7 @@ private fun CleanRecordRow(record: CleanRecord, onClick: () -> Unit) {
 private fun CleanRecordDetail(
     record: CleanRecord,
     loadMap: suspend (beginEpoch: Long) -> ParsedMap,
+    mapRotation: Int,
     modifier: Modifier = Modifier,
 ) {
     val done = record.complete == 1
@@ -1071,7 +1077,7 @@ private fun CleanRecordDetail(
             contentAlignment = Alignment.Center,
         ) {
             when {
-                map != null -> SavedMapImage(map!!, Modifier.fillMaxSize().padding(8.dp))
+                map != null -> SavedMapImage(map!!, Modifier.fillMaxSize().padding(8.dp), mapRotation)
                 failed -> Text("Couldn't load this run's map", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
             }
