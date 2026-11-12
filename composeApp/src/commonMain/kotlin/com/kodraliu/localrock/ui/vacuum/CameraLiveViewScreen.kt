@@ -127,6 +127,27 @@ fun CameraLiveViewScreen(
                     }
                 }
 
+                is CameraLiveSession.State.Activating -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        CircularProgressIndicator(color = Color.White)
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            if (s.twoKey) "Press the Power button on the robot now."
+                            else "Press and hold the Dock, Power and Mop Only buttons on the robot together (Spot Cleaning instead of Mop Only on older models).",
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Remote viewing turns on when the robot speaks. ${s.secondsLeft}s left.",
+                            color = Color.White.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+
                 is CameraLiveSession.State.Streaming -> {
                     peer?.let { RtcVideoView(it, Modifier.fillMaxSize()) }
                     Text(
@@ -155,7 +176,11 @@ fun CameraLiveViewScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { liveSession.start(pin) }) { Text("Retry") }
+                        if (s.canActivate) {
+                            Button(onClick = { liveSession.activate(pin, viewModel.twoKeyVideo) }) { Text("Activate remote viewing") }
+                        } else {
+                            Button(onClick = { liveSession.start(pin) }) { Text("Retry") }
+                        }
                         TextButton(onClick = {
                             container.appSettings.setCameraPin(duid, null)
                             pin = ""
