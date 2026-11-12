@@ -27,6 +27,8 @@ class DeviceRepository(
     private val isDemo: () -> Boolean = { false },
     /** Asks one robot whether it is there: true on a reply, false on silence, throws if it could not ask. */
     private val probe: suspend (Device) -> Boolean = { it.online },
+    /** The duids the server has never paired (no public key, never connected), or null when it could not say. */
+    private val unpairedProbe: suspend () -> Set<String>? = { null },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -43,6 +45,10 @@ class DeviceRepository(
     /** Per duid; a robot with no entry has not been asked, so its server `online` flag is all there is. */
     private val _reachability = MutableStateFlow<Map<String, Reachability>>(emptyMap())
     val reachability: StateFlow<Map<String, Reachability>> = _reachability.asStateFlow()
+
+    /** Robots the server knows from the cloud import but has never paired; they open Add vacuum when tapped. */
+    private val _unpaired = MutableStateFlow<Set<String>>(emptySet())
+    val unpaired: StateFlow<Set<String>> = _unpaired.asStateFlow()
 
     private var probeJob: Job? = null
 
@@ -91,6 +97,10 @@ class DeviceRepository(
         // endpoint; calling it on every refresh made local_roborock_server fabricate a phantom
         // "rr_<id>" runtime-credential device (local_key_source=onboarding_nc) that then showed up
         // as a ghost vacuum in the device list. The result was discarded anyway.
+        scope.launch {
+            val answer = try { unpairedProbe() } catch (e: CancellationException) { throw e } catch (e: Throwable) { null }
+            if (answer != null) _unpaired.value = answer
+        }
         val detail = deviceApi.getHomeDetail(token)
         val homeId = detail.resolvedHomeId ?: error("Server did not return a home id")
         val home = deviceApi.getHome(homeId)
