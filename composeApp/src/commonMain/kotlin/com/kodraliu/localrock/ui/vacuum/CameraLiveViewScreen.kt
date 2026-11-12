@@ -103,6 +103,17 @@ fun CameraLiveViewScreen(
                 return@Box
             }
 
+            Text(
+                "BETA: work in progress, may not work on every robot",
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .background(Color(0xFFB26A00), MaterialTheme.shapes.small)
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+            )
+
             when (val s = state) {
                 is CameraLiveSession.State.Idle -> {
                     PinEntry(

@@ -3,6 +3,9 @@ package com.kodraliu.localrock.shared.vacuum.camera
 /** `newFeatureSet` bit for two-key real-time video (python-roborock NewFeatureStrBit). */
 const val TWO_KEY_VIDEO_FEATURE_BIT = 32
 
+/** Bits that mark a robot with real-time video: two-key (32), two-key while charging (33), video patrol (48), video while charging and standby (73). */
+val CAMERA_FEATURE_BITS = listOf(32, 33, 48, 73)
+
 /**
  * The robot's `camera_status` integer, laid out as the official app packs it (decoded from its
  * CameraStatusManager). Bits 12-13 hold a two-bit state for two-key remote viewing: the app

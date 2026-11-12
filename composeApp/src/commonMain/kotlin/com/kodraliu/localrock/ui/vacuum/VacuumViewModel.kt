@@ -8,6 +8,7 @@ import com.kodraliu.localrock.shared.model.Scene
 import com.kodraliu.localrock.shared.model.SceneRunResult
 import com.kodraliu.localrock.shared.vacuum.DockCapabilities
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.camera.CAMERA_FEATURE_BITS
 import com.kodraliu.localrock.shared.vacuum.camera.TWO_KEY_VIDEO_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.MapEditException
 import com.kodraliu.localrock.shared.vacuum.RoomType
@@ -47,6 +48,8 @@ class VacuumViewModel(
     val betaFeatureDefs = supportedBetaFeatures(device.newFeatureSet)
     val unlistedFeatures = unlistedAdvertisedFeatures(device.newFeatureSet)
     val twoKeyVideo = newFeatureBit(device.newFeatureSet, TWO_KEY_VIDEO_FEATURE_BIT)
+    // Real-time video is a beta feature: shown for robots that advertise any video bit.
+    val supportsCamera = CAMERA_FEATURE_BITS.any { newFeatureBit(device.newFeatureSet, it) }
     val showsBetaFeatures = betaFeatureDefs.any { it.section == FeatureSection.BETA && it.bit != null } || unlistedFeatures.isNotEmpty()
     val repository: VacuumRepository = container.vacuumRepositoryFor(device)
 

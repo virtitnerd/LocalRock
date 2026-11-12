@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
@@ -333,7 +334,7 @@ fun VacuumDetailScreen(
 
     val PanelBody: @Composable (DetailPanel) -> Unit = { currentPanel ->
         when (currentPanel) {
-            DetailPanel.More -> MoreActionsSheetContent(onAction = onMoreAction)
+            DetailPanel.More -> MoreActionsSheetContent(showCamera = viewModel.supportsCamera, onAction = onMoreAction)
 
             DetailPanel.Routines -> RoutinesSheetContent(
                 state = routines,
@@ -596,7 +597,7 @@ fun VacuumDetailScreen(
                             }
                             PanelBody(headed)
                         } else {
-                            MoreActionsSheetContent(onAction = onMoreAction)
+                            MoreActionsSheetContent(showCamera = viewModel.supportsCamera, onAction = onMoreAction)
                         }
                     }
 
@@ -1273,7 +1274,7 @@ private fun ControlBar(
 private enum class MoreAction { ROOMS, ZONES, PIN_GO, REMOTE, SCHEDULE, CAMERA, DOCK, HISTORY, MAPS, EDIT_MAP, ROUTINES }
 
 @Composable
-private fun MoreActionsSheetContent(onAction: (MoreAction) -> Unit) {
+private fun MoreActionsSheetContent(showCamera: Boolean, onAction: (MoreAction) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1297,7 +1298,6 @@ private fun MoreActionsSheetContent(onAction: (MoreAction) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MoreActionItem(Modifier.weight(1f), Icons.Default.Gamepad, "Remote", AppColors.AccentCyan) { onAction(MoreAction.REMOTE) }
             MoreActionItem(Modifier.weight(1f), Icons.Default.Schedule, "Schedule", AppColors.Water) { onAction(MoreAction.SCHEDULE) }
-            // Camera is hidden for now; MoreAction.CAMERA and the live view screen stay in place.
             MoreActionItem(Modifier.weight(1f), Icons.Default.Edit, "Edit map", AppColors.AccentRed) { onAction(MoreAction.EDIT_MAP) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1308,7 +1308,11 @@ private fun MoreActionsSheetContent(onAction: (MoreAction) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MoreActionItem(Modifier.weight(1f), Icons.AutoMirrored.Filled.PlaylistPlay, "Routines", MaterialTheme.colorScheme.secondary) { onAction(MoreAction.ROUTINES) }
             Spacer(Modifier.weight(1f))
-            Spacer(Modifier.weight(1f))
+            if (showCamera) {
+                MoreActionItem(Modifier.weight(1f), Icons.Default.Videocam, "Camera (beta)", AppColors.AccentRed) { onAction(MoreAction.CAMERA) }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
