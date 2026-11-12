@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -148,6 +149,7 @@ private sealed interface SettingsRoute {
     data object Valley : SettingsRoute
     data object BetaFeatures : SettingsRoute
     data object History : SettingsRoute
+    data object Matter : SettingsRoute
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -217,6 +219,7 @@ fun VacuumSettingsScreen(
                 scope.launch { runCatching { repository.fetchDndSettings() } }
                 route = SettingsRoute.DndMode
             },
+            onMatter = if (!viewModel.supportsMatter) null else ({ route = SettingsRoute.Matter }),
             onBetaFeatures = if (!viewModel.showsBetaFeatures) null else ({
                 route = SettingsRoute.BetaFeatures
             }),
@@ -292,6 +295,12 @@ fun VacuumSettingsScreen(
             dndSettings = dndSettings,
             onEnable = { sh, sm, eh, em -> scope.launch { runCatching { repository.setDnd(sh, sm, eh, em) } } },
             onDisable = { scope.launch { runCatching { repository.disableDnd() } } },
+            onBack = { route = SettingsRoute.Root },
+        )
+        SettingsRoute.Matter -> MatterScreen(
+            loadStatus = { repository.fetchMatterStatus() },
+            requestKey = { repository.requestMatterKey() },
+            reset = { repository.resetMatter() },
             onBack = { route = SettingsRoute.Root },
         )
         SettingsRoute.History -> {
@@ -394,6 +403,7 @@ private fun SettingsRootScreen(
     onDockSettings: () -> Unit,
     onRobotSettings: () -> Unit,
     onDndMode: () -> Unit,
+    onMatter: (() -> Unit)?,
     onBetaFeatures: (() -> Unit)?,
 ) {
     Scaffold(
@@ -492,6 +502,18 @@ private fun SettingsRootScreen(
                         subtitle = "Set quiet hours for cleaning",
                         onClick = onDndMode,
                     )
+                }
+                if (onMatter != null) {
+                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
+                    item {
+                        SettingsCategoryRow(
+                            icon = Icons.Default.Link,
+                            iconTint = AppColors.AccentIndigo,
+                            title = "Matter",
+                            subtitle = "Add the robot to Apple Home, Google Home and more",
+                            onClick = onMatter,
+                        )
+                    }
                 }
                 if (onBetaFeatures != null) {
                     item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
