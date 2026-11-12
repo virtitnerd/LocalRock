@@ -28,8 +28,17 @@ data class CameraStatus(val raw: Int) {
     /** Remote viewing is on, by either activation method. */
     val activated: Boolean get() = realTimeMonitor || twoKeyActive
 
-    /** The value that asks the robot to wait for the Power press; the privacy bit is set as the app does. */
-    fun requestingTwoKey(): CameraStatus = withTwoKey(TWO_KEY_REQUESTED).let { CameraStatus(it.raw or PRIVACY_AGREED_BIT) }
+    /**
+     * The writes the official app makes to ask for two-key activation, in its order: the pet-mode alert
+     * is marked shown, the privacy policy is agreed, then state 1 is set. An a226 captured them as
+     * 257 -> 385 -> 417 -> 4513. Steps the robot already reports are left out.
+     */
+    fun twoKeyActivationSteps(): List<CameraStatus> {
+        val shown = CameraStatus(raw or PET_ALERT_SHOWN_BIT)
+        val agreed = CameraStatus(shown.raw or PRIVACY_AGREED_BIT)
+        val requested = agreed.withTwoKey(TWO_KEY_REQUESTED)
+        return listOf(shown, agreed, requested).filter { it.raw != raw }.distinct()
+    }
 
     /** The value the app writes when the user cancels or the wait runs out. */
     fun cancellingTwoKey(): CameraStatus = withTwoKey(0)
@@ -41,5 +50,6 @@ data class CameraStatus(val raw: Int) {
         const val TWO_KEY_REQUESTED = 1
         const val TWO_KEY_ACTIVE = 2
         const val PRIVACY_AGREED_BIT = 1 shl 5
+        const val PET_ALERT_SHOWN_BIT = 1 shl 7
     }
 }

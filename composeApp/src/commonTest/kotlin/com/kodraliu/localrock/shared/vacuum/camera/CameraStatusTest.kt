@@ -25,23 +25,29 @@ class CameraStatusTest {
     }
 
     @Test
-    fun requestingActivationWritesStateOneAndKeepsTheRest() {
-        val request = off.requestingTwoKey()
-        assertEquals(259 or (1 shl 12) or (1 shl 5), request.raw)
-        assertTrue(request.twoKeyRequested)
-        assertFalse(request.activated)
+    fun activationFollowsTheSequenceAnA226Captured() {
+        // The official app wrote 385, 417 and 4513 starting from 257.
+        assertEquals(listOf(385, 417, 4513), CameraStatus(257).twoKeyActivationSteps().map { it.raw })
     }
 
     @Test
-    fun requestingReplacesAStaleActiveState() {
-        val request = CameraStatus(2 shl 12).requestingTwoKey()
-        assertEquals(1, request.twoKeyState)
+    fun activationStartsFromWhereTheRobotIs() {
+        assertEquals(listOf(387, 419, 4515), off.twoKeyActivationSteps().map { it.raw })
+        assertEquals(listOf(4513), CameraStatus(417).twoKeyActivationSteps().map { it.raw })
+        val last = off.twoKeyActivationSteps().last()
+        assertTrue(last.twoKeyRequested)
+        assertFalse(last.activated)
+    }
+
+    @Test
+    fun anActiveStateIsReplacedByTheRequest() {
+        assertEquals(1, CameraStatus(2 shl 12).twoKeyActivationSteps().last().twoKeyState)
     }
 
     @Test
     fun cancellingClearsOnlyTheTwoKeyState() {
-        val pending = off.requestingTwoKey()
-        assertEquals(259 or (1 shl 5), pending.cancellingTwoKey().raw)
+        val pending = CameraStatus(4513)
+        assertEquals(417, pending.cancellingTwoKey().raw)
         assertEquals(0, pending.cancellingTwoKey().twoKeyState)
     }
 
