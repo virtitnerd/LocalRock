@@ -507,6 +507,10 @@ class VacuumRepository(
 
     suspend fun startPetSearch() { session.startPetSearch().requireOk("app_start_pet_patrol") }
 
+    suspend fun fetchOtaState(): String? = parseOtaState(session.getOtaState().requireOk("get_ota_state").result)
+
+    suspend fun fetchOtaProgress(): Int? = parseOtaProgress(session.getOtaProgress().requireOk("get_ota_progress").result)
+
     suspend fun fetchMatterStatus(): MatterInfo? =
         parseMatterStatus(session.getMatterStatus().requireOk("matter.get_status").result)
 
