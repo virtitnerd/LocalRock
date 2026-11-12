@@ -12,6 +12,8 @@ import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.MATTER_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.PET_SNAPSHOT_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.VIDEO_PATROL_FEATURE_BIT
+import com.kodraliu.localrock.shared.vacuum.camera.CAMERA_FEATURE_BITS
+import com.kodraliu.localrock.shared.vacuum.camera.TWO_KEY_VIDEO_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.MapEditException
 import com.kodraliu.localrock.shared.vacuum.RoomType
 import com.kodraliu.localrock.shared.vacuum.VacuumErrorCodes
@@ -61,6 +63,9 @@ class VacuumViewModel(
     val unlistedFeatures = unlistedAdvertisedFeatures(device.newFeatureSet)
     val supportsPetSearch = newFeatureBit(device.newFeatureSet, VIDEO_PATROL_FEATURE_BIT) || newFeatureBit(device.newFeatureSet, PET_SNAPSHOT_FEATURE_BIT)
     val supportsMatter = newFeatureBit(device.newFeatureSet, MATTER_FEATURE_BIT)
+    val twoKeyVideo = newFeatureBit(device.newFeatureSet, TWO_KEY_VIDEO_FEATURE_BIT)
+    // Real-time video is a beta feature: shown for robots that advertise any video bit.
+    val supportsCamera = CAMERA_FEATURE_BITS.any { newFeatureBit(device.newFeatureSet, it) }
     val showsBetaFeatures = betaFeatureDefs.any { it.section == FeatureSection.BETA && it.bit != null } || unlistedFeatures.isNotEmpty()
     val repository: VacuumRepository = container.vacuumRepositoryFor(device)
 
