@@ -146,8 +146,11 @@ class CameraLiveSession(private val session: VacuumSession) {
         val start = read() ?: throw IllegalStateException("The robot did not report its camera status")
         if (start.activated) return
         if (twoKey) {
-            val write = session.setCameraStatus(start.requestingTwoKey().raw)
-            if (write.error != null) throw IllegalStateException("The robot refused to start activation: ${write.error}")
+            for (step in start.twoKeyActivationSteps()) {
+                val write = session.setCameraStatus(step.raw)
+                if (write.error != null) throw IllegalStateException("The robot refused to start activation: ${write.error}")
+                delay(300)
+            }
         }
         repeat(ACTIVATION_SECONDS) { elapsed ->
             _state.value = State.Activating(ACTIVATION_SECONDS - elapsed, twoKey)
@@ -155,7 +158,7 @@ class CameraLiveSession(private val session: VacuumSession) {
             val now = read() ?: return@repeat
             if (now.activated) return
         }
-        if (twoKey) runCatching { session.setCameraStatus(start.cancellingTwoKey().raw) }
+        if (twoKey) runCatching { session.setCameraStatus((read() ?: start).cancellingTwoKey().raw) }
         throw IllegalStateException("Activation timed out. Tap Activate again and press the button within a minute.")
     }
 
