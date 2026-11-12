@@ -194,6 +194,15 @@ val BetaFeatureDefs = listOf(
         section = FeatureSection.FLOOR,
         settingName = "enable_sway_arm_for_high_door_sill_carpet",
     ),
+    BetaFeatureDef(
+        id = "optimize_battery",
+        title = "Smart charging",
+        description = "Charges to 80% first, then slowly to 100%, to protect the battery",
+        bit = 74,
+        getMethod = "get_optimize_battery_status",
+        setMethod = "set_optimize_battery_status",
+        section = FeatureSection.ROBOT,
+    ),
 )
 
 /** The features this robot's `newFeatureSet` advertises. */
