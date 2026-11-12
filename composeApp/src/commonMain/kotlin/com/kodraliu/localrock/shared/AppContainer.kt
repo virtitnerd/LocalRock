@@ -88,16 +88,6 @@ class AppContainer(
         authRepository,
         isDemo = { appSettings.demoMode.value },
         probe = ::probeDevice,
-        unpairedProbe = {
-            // Needs the admin password the Add vacuum screen saved; without it nothing is marked.
-            val password = appSettings.adminPassword.value
-            if (password.isNullOrBlank()) null else {
-                onboardingAdminApi.login(password)
-                onboardingAdminApi.listDevices()
-                    .filter { d -> d.onboarding?.let { !it.hasPublicKey && !it.unsupported } == true && !d.connected }
-                    .map { it.duid }.toSet()
-            }
-        },
     )
 
     private val isDemo: Boolean get() = appSettings.demoMode.value

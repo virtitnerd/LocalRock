@@ -27,8 +27,6 @@ class DeviceRepository(
     private val isDemo: () -> Boolean = { false },
     /** Asks one robot whether it is there: true on a reply, false on silence, throws if it could not ask. */
     private val probe: suspend (Device) -> Boolean = { it.online },
-    /** The duids the server has never paired (no public key, never connected), or null when it could not say. */
-    private val unpairedProbe: suspend () -> Set<String>? = { null },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -83,6 +81,16 @@ class DeviceRepository(
         }
     }
 
+    /** A robot the server has never heard from over MQTT was imported from the cloud but never paired to this server. */
+    private fun markNeverHeard(devices: List<Device>) {
+        scope.launch {
+            val never = devices.filter { device ->
+                try { !deviceApi.lastKnown(device.duid, false).known } catch (e: CancellationException) { throw e } catch (e: Throwable) { false }
+            }.map { it.duid }.toSet()
+            _unpaired.value = never
+        }
+    }
+
     suspend fun refresh() {
         if (isDemo()) {
             val home = DemoData.home
@@ -97,10 +105,6 @@ class DeviceRepository(
         // endpoint; calling it on every refresh made local_roborock_server fabricate a phantom
         // "rr_<id>" runtime-credential device (local_key_source=onboarding_nc) that then showed up
         // as a ghost vacuum in the device list. The result was discarded anyway.
-        scope.launch {
-            val answer = try { unpairedProbe() } catch (e: CancellationException) { throw e } catch (e: Throwable) { null }
-            if (answer != null) _unpaired.value = answer
-        }
         val detail = deviceApi.getHomeDetail(token)
         val homeId = detail.resolvedHomeId ?: error("Server did not return a home id")
         val home = deviceApi.getHome(homeId)
@@ -108,6 +112,7 @@ class DeviceRepository(
         _devicesFlow.value = home.devices
         val productsByDeviceId = home.products.associateBy { it.id }
         _products.value = home.devices.associate { it.duid to productsByDeviceId[it.productId]!! }
+        markNeverHeard(home.devices)
     }
 
     /** Create (or look up by name) a cloud room in the current home. */
