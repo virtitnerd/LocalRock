@@ -35,7 +35,10 @@ class BetaFeaturesTest {
     @Test
     fun features_without_a_known_bit_are_always_probed() {
         assertEquals(
-            listOf("dust_collection_switch", "follow_ground_material", "identify_furniture", "identify_ground_material"),
+            listOf(
+                "climbing_arms_high_sill", "dust_collection_switch", "follow_ground_material", "identify_furniture",
+                "identify_ground_material", "uncleaned_area_reminder",
+            ),
             supportedBetaFeatures(null).map { it.id }.sorted(),
         )
     }
