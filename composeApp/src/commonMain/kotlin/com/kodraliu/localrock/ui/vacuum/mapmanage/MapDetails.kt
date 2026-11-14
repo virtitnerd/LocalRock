@@ -181,7 +181,7 @@ internal fun MapDetailsSheet(viewModel: VacuumViewModel, onClose: () -> Unit) {
             Text(MapStrings.MAP_DETAILS, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             IconButton(onClick = onClose) { Icon(Icons.Default.Close, MapStrings.CLOSE) }
         }
-        MapDetailsContent(display, hasHomeLayout(caps.floorPlan, map), prefs::set, Modifier.padding(top = 8.dp))
+        MapDetailsContent(display, hasHomeLayout(caps.advertised.floorPlanMap, map), prefs::set, Modifier.padding(top = 8.dp))
     }
 }
 
@@ -202,7 +202,7 @@ fun MapDetailsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            MapDetailsContent(display, hasHomeLayout(caps.floorPlan, map), prefs::set)
+            MapDetailsContent(display, hasHomeLayout(caps.advertised.floorPlanMap, map), prefs::set)
         }
     }
 }

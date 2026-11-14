@@ -17,18 +17,18 @@ class CapabilitiesMapsTest {
 
     @Test
     fun the_curv_has_remove_31_rooms_and_a_floor_plan() {
-        assertTrue(curv.mapEraser)
+        assertTrue(buildAdvertisedCapabilities(CURV_NEW_FEATURE_SET).mapEraser)
         assertTrue(MapTool.REMOVE in curv.mapTools)
         assertEquals(31, curv.maxRooms)
-        assertTrue(curv.floorPlan)
+        assertTrue(buildAdvertisedCapabilities(CURV_NEW_FEATURE_SET).floorPlanMap)
     }
 
     @Test
     fun the_qrevo_pro_has_no_remove_15_rooms_and_no_floor_plan() {
-        assertFalse(pro.mapEraser)
+        assertFalse(buildAdvertisedCapabilities(PRO_NEW_FEATURE_SET).mapEraser)
         assertFalse(MapTool.REMOVE in pro.mapTools)
         assertEquals(15, pro.maxRooms)
-        assertFalse(pro.floorPlan)
+        assertFalse(buildAdvertisedCapabilities(PRO_NEW_FEATURE_SET).floorPlanMap)
     }
 
     @Test

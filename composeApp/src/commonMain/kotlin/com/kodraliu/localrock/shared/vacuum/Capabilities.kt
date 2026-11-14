@@ -50,9 +50,7 @@ data class Capabilities(
     // Manage Maps (B3).
     val mapTools: Set<MapTool>,
     val mapBackup: Boolean,
-    val mapEraser: Boolean,
     val maxRooms: Int,
-    val floorPlan: Boolean,
     // History, firmware, maintenance (B4).
     val cruiseHistory: Boolean,
     val firmwareUpdates: Boolean,
@@ -83,7 +81,8 @@ fun buildCapabilities(
     val settings = buildSettingsCapabilities(featureSet, nfs)
     val device = devicePageFlags(nfs)
     val hasRoutineTab = device.routineTabKnown
-    val maps = buildMapCapabilities(featureSet, nfs)
+    val advertised = buildAdvertisedCapabilities(nfs, robotIsFcc)
+    val maps = buildMapCapabilities(featureSet, nfs, advertised)
     val secondary = secondaryFlags(nfs, patrol)
     return Capabilities(
         mainTabs = listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE) + if (hasRoutineTab) listOf(MainTab.ROUTINE) else emptyList(),
@@ -117,9 +116,7 @@ fun buildCapabilities(
         dock = DockCapabilities(model, featureSet, nfs),
         mapTools = maps.mapTools,
         mapBackup = maps.mapBackup,
-        mapEraser = maps.mapEraser,
         maxRooms = maps.maxRooms,
-        floorPlan = maps.floorPlan,
         cruiseHistory = secondary.cruiseHistory,
         firmwareUpdates = secondary.firmwareUpdates,
         autoFirmwareUpdates = secondary.autoFirmwareUpdates,
@@ -127,6 +124,6 @@ fun buildCapabilities(
         betaFeatures = betaFeatures,
         unlistedFeatures = unlisted,
         showsBetaFeatures = betaFeatures.any { it.section == FeatureSection.BETA && it.bit != null } || unlisted.isNotEmpty(),
-        advertised = buildAdvertisedCapabilities(nfs, robotIsFcc),
+        advertised = advertised,
     )
 }
