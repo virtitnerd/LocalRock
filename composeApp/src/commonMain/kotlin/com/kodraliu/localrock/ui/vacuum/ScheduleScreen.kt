@@ -103,6 +103,7 @@ fun ScheduleScreen(
     val rooms by repository.rooms.collectAsState()
     val supportsSmartPlan by viewModel.supportsSmartPlan.collectAsState()
     val supportsWaterSlide by viewModel.supportsWaterSlide.collectAsState()
+    val mapRotation by viewModel.mapRotation.collectAsState()
     val maps by repository.floorMaps.collectAsState()
     val map by repository.parsedMap.collectAsState()
     val currentFlag by repository.currentFloorFlag.collectAsState()
@@ -229,6 +230,7 @@ fun ScheduleScreen(
             supportsSmartPlan = supportsSmartPlan,
             supportsFastRoute = viewModel.supportsFastRoute,
             supportsWaterSlide = supportsWaterSlide,
+            mapRotation = mapRotation,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
             onSave = { hour, minute, weekdays, settings, once, _, _, _ ->
                 showAddDialog = false
@@ -244,6 +246,7 @@ fun ScheduleScreen(
             supportsSmartPlan = supportsSmartPlan,
             supportsFastRoute = viewModel.supportsFastRoute,
             supportsWaterSlide = supportsWaterSlide,
+            mapRotation = mapRotation,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
             onSave = { hour, minute, weekdays, settings, once, settingsChanged, timingChanged, enabled ->
                 editing = null
@@ -306,6 +309,7 @@ private fun TimerDialog(
     supportsSmartPlan: Boolean,
     supportsFastRoute: Boolean,
     supportsWaterSlide: Boolean,
+    mapRotation: Int,
     rooms: List<ParsedMapRoom>, map: ParsedMap?, mapName: String, currentFlag: Int,
     onSave: (hour: Int, minute: Int, weekdays: Set<Int>, settings: TimerSettings, once: Boolean, settingsChanged: Boolean, timingChanged: Boolean, enabled: Boolean) -> Unit,
     readNativeState: (suspend () -> String)? = null,
@@ -412,7 +416,7 @@ private fun TimerDialog(
                         ScheduleRow("Cleaning Mode", if (initial != null && !settingsChanged) start.kind.label() else kind.label()) { sheet = "mode" }
                         ScheduleRow("Map", mapName) { sheet = "rooms" }
                         if (map != null) VacuumMapImage(map, if (wholeHome) emptyList() else selected,
-                            onRoomTap = { sheet = "rooms" }, onObstacleTap = {}, is3D = false, yawDegrees = 0f, onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
+                            onRoomTap = { sheet = "rooms" }, onObstacleTap = {}, is3D = false, yawDegrees = mapRotation.toFloat(), onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
                         Text(if (wholeHome) "Entire map" else selected.joinToString(", ") { id -> rooms.firstOrNull { it.id == id }?.name ?: "Room $id" },
                             modifier = Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.bodyMedium)
                         Text("Preview: currently loaded map", style = MaterialTheme.typography.labelSmall)
@@ -574,7 +578,7 @@ private fun TimerDialog(
                             }
                             if (map != null) VacuumMapImage(map, draftRooms, onRoomTap = { id ->
                                 if (rooms.any { it.id == id }) draftRooms = if (id in draftRooms) draftRooms - id else draftRooms + id
-                            }, onObstacleTap = {}, is3D = false, yawDegrees = 0f, onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
+                            }, onObstacleTap = {}, is3D = false, yawDegrees = mapRotation.toFloat(), onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
                             if (rooms.isEmpty()) Text("No rooms loaded. Open the vacuum map, then return here.")
                             rooms.forEach { room ->
                                 Row(Modifier.fillMaxWidth().clickable { draftRooms = if (room.id in draftRooms) draftRooms - room.id else draftRooms + room.id }, verticalAlignment = Alignment.CenterVertically) {
