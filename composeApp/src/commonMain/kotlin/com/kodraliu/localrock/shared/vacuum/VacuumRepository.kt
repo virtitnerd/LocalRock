@@ -6,6 +6,8 @@ import com.kodraliu.localrock.shared.schedule.ScheduleException
 import com.kodraliu.localrock.shared.schedule.ServerJobCreation
 import com.kodraliu.localrock.shared.schedule.ServerJobDeletion
 import com.kodraliu.localrock.shared.schedule.nativeTimerState
+import com.kodraliu.localrock.shared.schedule.restoreBlockedReason
+import com.kodraliu.localrock.shared.schedule.robotCronOf
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import com.kodraliu.localrock.shared.model.Room
@@ -958,6 +960,30 @@ class VacuumRepository(
         val reply = session.getServerTimer()
         reply.requireOk("get_server_timer")
         return nativeTimerState(reply.result, name)
+    }
+
+    /** Server schedules whose robot timer is gone (for example after re-pairing); empty when the robot cannot say. */
+    suspend fun missingNativeTimers(timers: List<CleanTimer>): List<CleanTimer> {
+        val linked = timers.filter { !it.serverJob?.nativeName.isNullOrBlank() }
+        if (linked.isEmpty()) return emptyList()
+        val reply = runCatching { session.getServerTimer() }.getOrNull()?.takeIf { it.error == null } ?: return emptyList()
+        return linked.filter { nativeTimerState(reply.result, requireNotNull(it.serverJob?.nativeName)) == "Missing" }
+    }
+
+    /** Puts back a server schedule's robot timer that went missing (for example after re-pairing), then verifies it. */
+    suspend fun restoreNativeTimer(timer: CleanTimer): String = scheduleWrite {
+        val job = timer.serverJob ?: throw ScheduleException("This is not a server schedule.")
+        restoreBlockedReason(job)?.let { throw ScheduleException(it) }
+        val name = requireNotNull(job.nativeName)
+        val before = nativeTimerState(session.getServerTimer().also { it.requireOk("get_server_timer") }.result, name)
+        if (before != "Missing") throw ScheduleException("Native timer is ${before.lowercase()}; nothing was restored.")
+        session.setServerTimer(name, requireNotNull(robotCronOf(job.cron)), timer.settings.completedForServerTimer())
+            .requireOk("set_server_timer")
+        if (!job.enabled) session.updServerTimer(name, false).requireOk("upd_server_timer")
+        val after = nativeTimerState(session.getServerTimer().also { it.requireOk("get_server_timer") }.result, name)
+        val wanted = if (job.enabled) "On" else "Off"
+        if (after != wanted) throw ScheduleException("Restore was sent, but the robot reports the timer as ${after.lowercase()}.")
+        after
     }
 
     suspend fun createTimer(hour: Int, minute: Int, weekdays: Set<Int>, settings: TimerSettings = TimerSettings(), once: Boolean = false): CleanTimer =
