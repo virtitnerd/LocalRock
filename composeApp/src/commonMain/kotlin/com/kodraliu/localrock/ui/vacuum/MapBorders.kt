@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Path
 
 // Flat map look, tuned in one place. Widths are in grid cells (a cell is 50 mm, roughly 4 to 6 screen px).
 /** Mid-grey line around the whole floor plan. */
-internal val MAP_OUTLINE_COLOR = Color(0xFF8A8F93)
+internal val MAP_OUTLINE_COLOR = Color(0xFF7E8488)
 internal const val MAP_OUTLINE_WIDTH_CELLS = 0.30f
 
 /** Thinner line where two rooms with different ids touch. */
@@ -14,9 +14,9 @@ internal const val MAP_ROOM_BORDER_WIDTH_CELLS = 0.22f
 
 // Floor-plan look (maps with block 55): strokes by polygon edge type, colours from the official plugin.
 // Stroke widths are device pixels, drawn at screen scale so they do not shrink with the zoom.
-internal val FLOOR_PLAN_OUTER_COLOR = Color(0xFF959B9F)
+internal val FLOOR_PLAN_OUTER_COLOR = Color(0xFF7E8488)
 internal const val FLOOR_PLAN_OUTER_WIDTH_PX = 2.8f
-internal val FLOOR_PLAN_INNER_COLOR = Color(0xFFB4B9BC)
+internal val FLOOR_PLAN_INNER_COLOR = Color(0xFF8F959A)
 internal const val FLOOR_PLAN_INNER_WIDTH_PX = 2.0f
 internal val FLOOR_PLAN_DOOR_COLOR = Color(0xFFF2F2F7)
 internal const val FLOOR_PLAN_DOOR_WIDTH_PX = 4.0f
@@ -30,6 +30,9 @@ internal const val FLOOR_TEXTURE_STRENGTH = 0.25f
 
 /** Carpet hatching contrast as a share of the full pattern: softer than before but still recognisable. */
 internal const val CARPET_HATCH_STRENGTH = 0.45f
+
+/** Share of the map area the framed plan fills, leaving about 6.5 percent free on each side as the official app does. */
+internal const val MAP_FRAME_FILL = 0.87f
 
 /** Background behind the map in the detail hero. */
 internal val MAP_HERO_BACKGROUND = Color(0xFF000000)
