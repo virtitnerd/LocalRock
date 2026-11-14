@@ -44,6 +44,10 @@ import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.ConsumableStatus
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,4 +270,18 @@ private fun ConsumableItem(
             }
         }
     }
+}
+
+@Composable
+fun VacuumMaintenanceScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val repository = viewModel.repository
+    val scope = rememberCoroutineScope()
+    val consumables by repository.consumableStatus.collectAsState()
+    LaunchedOnEntry { runCatching { repository.fetchConsumableStatus() } }
+    MaintenanceScreen(
+        consumables = consumables,
+        onRefresh = { scope.launch { runCatching { repository.fetchConsumableStatus() } } },
+        onReset = { field -> scope.launch { runCatching { repository.resetConsumable(field) } } },
+        onBack = onBack,
+    )
 }

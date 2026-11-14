@@ -45,6 +45,8 @@ import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
 import com.kodraliu.localrock.ui.components.SettingRowClickable
+import androidx.compose.runtime.collectAsState
+import com.kodraliu.localrock.shared.vacuum.inSection
 
 /** One feature the robot reports, as a switch under the page it belongs to. */
 @Composable
@@ -162,4 +164,27 @@ internal fun FeatureSectionScreen(
             }
         }
     }
+}
+
+@Composable
+fun VacuumFloorSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
+    FeatureSectionScreen(
+        title = "Floor cleaning",
+        features = betaFeatures.inSection(FeatureSection.FLOOR),
+        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        onChoice = { id, value -> viewModel.report { it.setBetaChoice(id, value) } },
+        onBack = onBack,
+    )
+}
+
+@Composable
+fun VacuumObstacleSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
+    FeatureSectionScreen(
+        title = "Obstacle avoidance",
+        features = betaFeatures.inSection(FeatureSection.OBSTACLE),
+        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        onBack = onBack,
+    )
 }

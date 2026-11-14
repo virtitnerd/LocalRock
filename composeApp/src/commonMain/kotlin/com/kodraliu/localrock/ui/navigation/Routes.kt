@@ -21,3 +21,24 @@ import kotlinx.serialization.Serializable
 @Serializable data object VacuumRemote
 @Serializable data object VacuumPinGo
 @Serializable data object VacuumHistory
+
+// Settings pages inside VacuumGraph. Pages the redesign has not built yet open today's equivalent or a placeholder.
+@Serializable data object VacuumMaintenance
+@Serializable data class VacuumMaintenanceDetail(val consumable: String)
+@Serializable data object VacuumSettingsDock
+@Serializable data object VacuumSettingsFloor
+@Serializable data object VacuumSettingsCarpet
+@Serializable data object VacuumSettingsObstacle
+@Serializable data object VacuumSettingsRobot
+@Serializable data object VacuumSettingsDnd
+@Serializable data object VacuumSettingsValley
+@Serializable data object VacuumSettingsBeta
+@Serializable data object VacuumSettingsMatter
+@Serializable data object VacuumSettingsMoreOptions
+@Serializable data object VacuumSettingsChargingMode
+@Serializable data object VacuumSettingsRobotVoice
+@Serializable data object VacuumSettingsRemoteViewing
+@Serializable data object VacuumSettingsProductInfo
+@Serializable data object VacuumFirmware
+@Serializable data object VacuumManageMaps
+@Serializable data object VacuumMapDetails

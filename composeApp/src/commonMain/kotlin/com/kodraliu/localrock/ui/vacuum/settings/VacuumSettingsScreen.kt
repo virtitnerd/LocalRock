@@ -32,9 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.inSection
@@ -47,203 +45,53 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import com.kodraliu.localrock.ui.components.SettingRowInfo
 import com.kodraliu.localrock.ui.components.SettingsCategoryRow
-
-// ── Navigation ────────────────────────────────────────────────────────────────
-
-private sealed interface SettingsRoute {
-    data object Root : SettingsRoute
-    data object Maintenance : SettingsRoute
-    data object DockSettings : SettingsRoute
-    data object RobotSettings : SettingsRoute
-    data object DndMode : SettingsRoute
-    data object Carpet : SettingsRoute
-    data object Floor : SettingsRoute
-    data object Obstacle : SettingsRoute
-    data object Valley : SettingsRoute
-    data object BetaFeatures : SettingsRoute
-    data object History : SettingsRoute
-    data object Matter : SettingsRoute
-    data object Firmware : SettingsRoute
-}
+import com.kodraliu.localrock.ui.navigation.VacuumFirmware
+import com.kodraliu.localrock.ui.navigation.VacuumHistory
+import com.kodraliu.localrock.ui.navigation.VacuumMaintenance
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsBeta
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsCarpet
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsDnd
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsDock
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsFloor
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsMatter
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsObstacle
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsRobot
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+/** Settings root. Each row opens its own route in VacuumGraph through [onNavigate]. */
 @Composable
 fun VacuumSettingsScreen(
     viewModel: VacuumViewModel,
     onBack: () -> Unit,
+    onNavigate: (Any) -> Unit,
 ) {
     val repository = viewModel.repository
-    val mapRotation by viewModel.mapRotation.collectAsState()
-    var route by remember { mutableStateOf<SettingsRoute>(SettingsRoute.Root) }
-    // Sub-pages are local state, not nav destinations, so system back would leave Settings (#52).
-    BackHandler(enabled = route != SettingsRoute.Root) {
-        route = if (route == SettingsRoute.Valley) SettingsRoute.DockSettings else SettingsRoute.Root
-    }
-    val scope = rememberCoroutineScope()
-    val consumables by repository.consumableStatus.collectAsState()
-    val robotSettings by repository.robotSettings.collectAsState()
-    val dockSettings by repository.dockSettings.collectAsState()
-    val status by viewModel.status.collectAsState()
-    val busy by viewModel.busy.collectAsState()
-    val dndSettings by repository.dndSettings.collectAsState()
-    val valleySettings by repository.valleySettings.collectAsState()
-    val cleanHistory by repository.cleanHistory.collectAsState()
-    val cleanSummary by repository.cleanSummary.collectAsState()
-    val rooms by repository.rooms.collectAsState()
     val firmwareUpdate by viewModel.firmwareUpdate.collectAsState()
     val betaFeatures by repository.betaFeatures.collectAsState()
-    val betaFeaturesLoading by repository.betaFeaturesLoading.collectAsState()
 
     // Every feature the robot reports is read once, so a page with none is not offered.
-    LaunchedEffect(Unit) {
+    LaunchedOnEntry {
         if (betaFeatures.isEmpty()) runCatching { repository.fetchBetaFeatures(viewModel.betaFeatureDefs) }
     }
 
-    when (route) {
-        SettingsRoute.Root -> SettingsRootScreen(
-            modelName = viewModel.modelName,
-            firmwareVersion = viewModel.firmwareVersion,
-            firmwareUpdate = firmwareUpdate,
-            onCheckUpdate = { route = SettingsRoute.Firmware },
-            onBack = onBack,
-            onHistory = { route = SettingsRoute.History },
-            onMaintenance = {
-                scope.launch { runCatching { repository.fetchConsumableStatus() } }
-                route = SettingsRoute.Maintenance
-            },
-            onCarpet = {
-                scope.launch { runCatching { repository.fetchRobotSettings() } }
-                route = SettingsRoute.Carpet
-            },
-            onFloor = if (betaFeatures.inSection(FeatureSection.FLOOR).isEmpty()) null else ({ route = SettingsRoute.Floor }),
-            onObstacle = if (betaFeatures.inSection(FeatureSection.OBSTACLE).isEmpty()) null else ({ route = SettingsRoute.Obstacle }),
-            onDockSettings = {
-                scope.launch {
-                    runCatching { repository.fetchDockSettings() }
-                    runCatching { repository.fetchValleySettings() }
-                }
-                route = SettingsRoute.DockSettings
-            },
-            onRobotSettings = {
-                scope.launch { runCatching { repository.fetchRobotSettings() } }
-                route = SettingsRoute.RobotSettings
-            },
-            onDndMode = {
-                scope.launch { runCatching { repository.fetchDndSettings() } }
-                route = SettingsRoute.DndMode
-            },
-            onMatter = if (!viewModel.supportsMatter) null else ({ route = SettingsRoute.Matter }),
-            onBetaFeatures = if (!viewModel.showsBetaFeatures) null else ({
-                route = SettingsRoute.BetaFeatures
-            }),
-        )
-        SettingsRoute.Carpet -> CarpetScreen(
-            carpetMode = robotSettings.carpetMode,
-            features = betaFeatures.inSection(FeatureSection.CARPET),
-            onCarpetModeChange = { mode -> viewModel.report { it.setCarpetMode(mode) } },
-            onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.Floor -> FeatureSectionScreen(
-            title = "Floor cleaning",
-            features = betaFeatures.inSection(FeatureSection.FLOOR),
-            onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            onChoice = { id, value -> viewModel.report { it.setBetaChoice(id, value) } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.Obstacle -> FeatureSectionScreen(
-            title = "Obstacle avoidance",
-            features = betaFeatures.inSection(FeatureSection.OBSTACLE),
-            onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.BetaFeatures -> BetaFeaturesScreen(
-            features = betaFeatures.inSection(FeatureSection.BETA),
-            loading = betaFeaturesLoading,
-            unlisted = viewModel.unlistedFeatures,
-            onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.Maintenance -> MaintenanceScreen(
-            consumables = consumables,
-            onRefresh = { scope.launch { runCatching { repository.fetchConsumableStatus() } } },
-            onReset = { field -> scope.launch { runCatching { repository.resetConsumable(field) } } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.DockSettings -> DockSettingsScreen(
-            dockSettings = dockSettings,
-            dockCapabilities = viewModel.dockCapabilities,
-            dockType = status.dockType,
-            dockStatus = status.dockStatus,
-            busy = busy,
-            onWashModeChange = { mode -> viewModel.run { it.setWashMode(mode) } },
-            onWashFrequencyChange = { mode, minutes -> viewModel.run { it.setWashFrequency(mode, minutes) } },
-            onAutoEmptyModeChange = { mode -> viewModel.run { it.setAutoEmptyMode(mode) } },
-            onEmptyWaterTank = { viewModel.run("Emptying the water tank") { it.emptyInbuiltWaterTank() } },
-            features = betaFeatures.inSection(FeatureSection.DOCK),
-            onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            valleySettings = valleySettings,
-            onMopDryingChange = { on -> viewModel.run { it.setMopDrying(on) } },
-            onDryTimeChange = { seconds -> viewModel.run { it.setDryTime(seconds) } },
-            onWashWaterTemperatureChange = { value -> viewModel.run { it.setWashWaterTemperature(value) } },
-            onOpenValley = { route = SettingsRoute.Valley },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.Valley -> ValleyScreen(
-            valleySettings = valleySettings,
-            onEnable = { sh, sm, eh, em -> viewModel.run { it.setValley(sh, sm, eh, em) } },
-            onDisable = { viewModel.run { it.disableValley() } },
-            onBack = { route = SettingsRoute.DockSettings },
-        )
-        SettingsRoute.RobotSettings -> RobotSettingsScreen(
-            robotSettings = robotSettings,
-            onFindRobot = { scope.launch { runCatching { repository.findMe() } } },
-            onVolumeChange = { volume -> viewModel.report { it.setVolume(volume) } },
-            onChildLockChange = { locked -> viewModel.report { it.setChildLock(locked) } },
-            onLedChange = { on -> viewModel.report { it.setLed(on) } },
-            features = betaFeatures.inSection(FeatureSection.ROBOT),
-            onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.DndMode -> DndScreen(
-            dndSettings = dndSettings,
-            onEnable = { sh, sm, eh, em -> scope.launch { runCatching { repository.setDnd(sh, sm, eh, em) } } },
-            onDisable = { scope.launch { runCatching { repository.disableDnd() } } },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.Firmware -> FirmwareUpdateScreen(viewModel = viewModel, onBack = { route = SettingsRoute.Root })
-        SettingsRoute.Matter -> MatterScreen(
-            loadStatus = { repository.fetchMatterStatus() },
-            requestKey = { repository.requestMatterKey() },
-            reset = { repository.resetMatter() },
-            onBack = { route = SettingsRoute.Root },
-        )
-        SettingsRoute.History -> {
-
-            LaunchedEffect(Unit) {
-                runCatching { repository.fetchCleanHistory() }
-                runCatching { repository.fetchCleanSummary() }
-            }
-            HistoryScreen(
-                records = cleanHistory,
-                summary = cleanSummary,
-                loadMap = { repository.fetchCleanRecordMap(it) },
-                loadThumbnails = { task, x, y -> repository.fetchPatrolThumbnails(task, x, y) },
-                mapRotation = mapRotation,
-                loadTimeline = repository::fetchCleanTimeline,
-                roomName = { id -> rooms.firstOrNull { it.id == id }?.name },
-                onRefresh = {
-                    scope.launch {
-                        runCatching { repository.fetchCleanHistory() }
-                        runCatching { repository.fetchCleanSummary() }
-                    }
-                },
-                onBack = { route = SettingsRoute.Root },
-            )
-        }
-    }
+    SettingsRootScreen(
+        modelName = viewModel.modelName,
+        firmwareVersion = viewModel.firmwareVersion,
+        firmwareUpdate = firmwareUpdate,
+        onCheckUpdate = { onNavigate(VacuumFirmware) },
+        onBack = onBack,
+        onHistory = { onNavigate(VacuumHistory) },
+        onMaintenance = { onNavigate(VacuumMaintenance) },
+        onCarpet = { onNavigate(VacuumSettingsCarpet) },
+        onFloor = if (betaFeatures.inSection(FeatureSection.FLOOR).isEmpty()) null else ({ onNavigate(VacuumSettingsFloor) }),
+        onObstacle = if (betaFeatures.inSection(FeatureSection.OBSTACLE).isEmpty()) null else ({ onNavigate(VacuumSettingsObstacle) }),
+        onDockSettings = { onNavigate(VacuumSettingsDock) },
+        onRobotSettings = { onNavigate(VacuumSettingsRobot) },
+        onDndMode = { onNavigate(VacuumSettingsDnd) },
+        onMatter = if (!viewModel.supportsMatter) null else ({ onNavigate(VacuumSettingsMatter) }),
+        onBetaFeatures = if (!viewModel.showsBetaFeatures) null else ({ onNavigate(VacuumSettingsBeta) }),
+    )
 }
 
 

@@ -26,6 +26,9 @@ import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.PickerDialog
 import com.kodraliu.localrock.ui.components.SettingRowClickable
+import androidx.compose.runtime.collectAsState
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.inSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,4 +76,19 @@ internal fun CarpetScreen(
             onDismiss = { showDialog = false },
         )
     }
+}
+
+@Composable
+fun VacuumCarpetScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val repository = viewModel.repository
+    val robotSettings by repository.robotSettings.collectAsState()
+    val betaFeatures by repository.betaFeatures.collectAsState()
+    LaunchedOnEntry { runCatching { repository.fetchRobotSettings() } }
+    CarpetScreen(
+        carpetMode = robotSettings.carpetMode,
+        features = betaFeatures.inSection(FeatureSection.CARPET),
+        onCarpetModeChange = { mode -> viewModel.report { it.setCarpetMode(mode) } },
+        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        onBack = onBack,
+    )
 }

@@ -35,6 +35,11 @@ import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.PickerDialog
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
 import com.kodraliu.localrock.ui.components.SettingRowClickable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.inSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,4 +128,23 @@ internal fun RobotSettingsScreen(
             onDismiss = { showVolumeDialog = false },
         )
     }
+}
+
+@Composable
+fun VacuumRobotSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val repository = viewModel.repository
+    val scope = rememberCoroutineScope()
+    val robotSettings by repository.robotSettings.collectAsState()
+    val betaFeatures by repository.betaFeatures.collectAsState()
+    LaunchedOnEntry { runCatching { repository.fetchRobotSettings() } }
+    RobotSettingsScreen(
+        robotSettings = robotSettings,
+        onFindRobot = { scope.launch { runCatching { repository.findMe() } } },
+        onVolumeChange = { volume -> viewModel.report { it.setVolume(volume) } },
+        onChildLockChange = { locked -> viewModel.report { it.setChildLock(locked) } },
+        onLedChange = { on -> viewModel.report { it.setLed(on) } },
+        features = betaFeatures.inSection(FeatureSection.ROBOT),
+        onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        onBack = onBack,
+    )
 }

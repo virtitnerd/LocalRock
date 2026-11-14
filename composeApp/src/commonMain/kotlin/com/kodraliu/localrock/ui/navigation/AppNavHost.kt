@@ -37,6 +37,23 @@ import com.kodraliu.localrock.ui.vacuum.ZoneCleanScreen
 import com.kodraliu.localrock.ui.whatsnew.WhatsNewSheet
 import com.kodraliu.localrock.ui.whatsnew.shouldShowWhatsNew
 import com.kodraliu.localrock.ui.whatsnew.whatsNewFor
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
+import com.kodraliu.localrock.ui.components.ComingSoonScreen
+import com.kodraliu.localrock.ui.strings.MapStrings
+import com.kodraliu.localrock.ui.strings.SettingsStrings
+import com.kodraliu.localrock.ui.vacuum.FirmwareUpdateScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumBetaFeaturesScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumCarpetScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumDndScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumDockSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumFloorSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumMatterScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumObstacleSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumRobotSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumValleyScreen
 
 @Composable
 fun AppNavHost() {
@@ -131,11 +148,10 @@ fun AppNavHost() {
         }
 
         navigation<VacuumGraph>(startDestination = VacuumMain) {
+            val back: () -> Unit = { navController.popBackStack() }
+            val open: (Any) -> Unit = { navController.navigate(it) }
 
-            composable<VacuumMain> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
+            vacuumComposable<VacuumMain>(navController, container) { viewModel ->
                 VacuumDetailScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack<VacuumGraph>(inclusive = true) },
@@ -149,86 +165,67 @@ fun AppNavHost() {
                     onHistory = { navController.navigate(VacuumHistory) },
                 )
             }
+            vacuumComposable<VacuumRemote>(navController, container) { VacuumRemoteScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumPinGo>(navController, container) { VacuumPinGoScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumHistory>(navController, container) { VacuumHistoryScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumCamera>(navController, container) { CameraLiveViewScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumZoneClean>(navController, container) { ZoneCleanScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumMapEdit>(navController, container) { MapEditScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSchedule>(navController, container) { ScheduleScreen(viewModel = it, onBack = back) }
 
-            composable<VacuumRemote> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                VacuumRemoteScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            // Settings and the pages it opens.
+            vacuumComposable<VacuumSettings>(navController, container) {
+                VacuumSettingsScreen(viewModel = it, onBack = back, onNavigate = open)
             }
-
-            composable<VacuumPinGo> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                VacuumPinGoScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumMaintenance>(navController, container) { VacuumMaintenanceScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumMaintenanceDetail>(navController, container) {
+                ComingSoonScreen(title = SettingsStrings.MAINTENANCE, onBack = back)
             }
-
-            composable<VacuumHistory> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                VacuumHistoryScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumSettingsDock>(navController, container) {
+                VacuumDockSettingsScreen(viewModel = it, onBack = back, onOpenValley = { open(VacuumSettingsValley) })
             }
+            vacuumComposable<VacuumSettingsValley>(navController, container) { VacuumValleyScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsFloor>(navController, container) { VacuumFloorSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsCarpet>(navController, container) { VacuumCarpetScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsObstacle>(navController, container) { VacuumObstacleSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsRobot>(navController, container) { VacuumRobotSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsDnd>(navController, container) { VacuumDndScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsBeta>(navController, container) { VacuumBetaFeaturesScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsMatter>(navController, container) { VacuumMatterScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumFirmware>(navController, container) { FirmwareUpdateScreen(viewModel = it, onBack = back) }
 
-            composable<VacuumCamera> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                CameraLiveViewScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            // Declared for the redesign; each opens today's closest page or a placeholder until its track replaces the body.
+            vacuumComposable<VacuumSettingsMoreOptions>(navController, container) { VacuumRobotSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsChargingMode>(navController, container) {
+                VacuumValleyScreen(viewModel = it, onBack = back, fetchOnEntry = true)
             }
-
-            composable<VacuumSettings> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                VacuumSettingsScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumSettingsRobotVoice>(navController, container) {
+                ComingSoonScreen(title = SettingsStrings.ROBOT_VOICE, onBack = back)
             }
-
-            composable<VacuumZoneClean> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                ZoneCleanScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumSettingsRemoteViewing>(navController, container) {
+                ComingSoonScreen(title = SettingsStrings.REMOTE_VIEWING_SETTINGS, onBack = back)
             }
-
-            composable<VacuumMapEdit> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                MapEditScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumSettingsProductInfo>(navController, container) {
+                ComingSoonScreen(title = SettingsStrings.PRODUCT_INFO, onBack = back)
             }
-
-            composable<VacuumSchedule> { entry ->
-                val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
-                val duid = graphEntry.toRoute<VacuumGraph>().duid
-                val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
-                ScheduleScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+            vacuumComposable<VacuumManageMaps>(navController, container) { MapEditScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumMapDetails>(navController, container) {
+                ComingSoonScreen(title = MapStrings.MAP_DETAILS, onBack = back)
             }
         }
+    }
+}
+
+/** A destination inside VacuumGraph; every one shares the graph entry's VacuumViewModel. */
+private inline fun <reified T : Any> NavGraphBuilder.vacuumComposable(
+    navController: NavHostController,
+    container: AppContainer,
+    noinline content: @Composable NavBackStackEntry.(VacuumViewModel) -> Unit,
+) {
+    composable<T> { entry ->
+        val graphEntry = remember(entry) { navController.getBackStackEntry<VacuumGraph>() }
+        val duid = graphEntry.toRoute<VacuumGraph>().duid
+        val viewModel: VacuumViewModel = viewModel(graphEntry) { VacuumViewModel(duid, container) }
+        entry.content(viewModel)
     }
 }

@@ -37,6 +37,9 @@ import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import androidx.compose.runtime.collectAsState
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.inSection
 
 private const val BETA_FEATURES_ISSUE_URL = "https://github.com/DonSidro/LocalRock/issues/55"
 
@@ -165,4 +168,17 @@ internal fun BetaFeaturesScreen(
             }
         }
     }
+}
+
+@Composable
+fun VacuumBetaFeaturesScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
+    val betaFeaturesLoading by viewModel.repository.betaFeaturesLoading.collectAsState()
+    BetaFeaturesScreen(
+        features = betaFeatures.inSection(FeatureSection.BETA),
+        loading = betaFeaturesLoading,
+        unlisted = viewModel.unlistedFeatures,
+        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        onBack = onBack,
+    )
 }

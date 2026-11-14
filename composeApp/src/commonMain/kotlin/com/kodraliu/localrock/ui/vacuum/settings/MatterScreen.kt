@@ -294,3 +294,14 @@ private fun MatterCodeCard(label: String, value: String, onCopy: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun VacuumMatterScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val repository = viewModel.repository
+    MatterScreen(
+        loadStatus = { repository.fetchMatterStatus() },
+        requestKey = { repository.requestMatterKey() },
+        reset = { repository.resetMatter() },
+        onBack = onBack,
+    )
+}

@@ -50,6 +50,9 @@ import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.PickerDialog
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
 import com.kodraliu.localrock.ui.components.SettingRowClickable
+import androidx.compose.runtime.collectAsState
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.inSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -330,4 +333,51 @@ internal fun ValleyScreen(
             }
         }
     }
+}
+
+@Composable
+fun VacuumDockSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit, onOpenValley: () -> Unit) {
+    val repository = viewModel.repository
+    val dockSettings by repository.dockSettings.collectAsState()
+    val valleySettings by repository.valleySettings.collectAsState()
+    val betaFeatures by repository.betaFeatures.collectAsState()
+    val status by viewModel.status.collectAsState()
+    val busy by viewModel.busy.collectAsState()
+    LaunchedOnEntry {
+        runCatching { repository.fetchDockSettings() }
+        runCatching { repository.fetchValleySettings() }
+    }
+    DockSettingsScreen(
+        dockSettings = dockSettings,
+        dockCapabilities = viewModel.dockCapabilities,
+        dockType = status.dockType,
+        dockStatus = status.dockStatus,
+        busy = busy,
+        onWashModeChange = { mode -> viewModel.run { it.setWashMode(mode) } },
+        onWashFrequencyChange = { mode, minutes -> viewModel.run { it.setWashFrequency(mode, minutes) } },
+        onAutoEmptyModeChange = { mode -> viewModel.run { it.setAutoEmptyMode(mode) } },
+        onEmptyWaterTank = { viewModel.run("Emptying the water tank") { it.emptyInbuiltWaterTank() } },
+        features = betaFeatures.inSection(FeatureSection.DOCK),
+        onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        valleySettings = valleySettings,
+        onMopDryingChange = { on -> viewModel.run { it.setMopDrying(on) } },
+        onDryTimeChange = { seconds -> viewModel.run { it.setDryTime(seconds) } },
+        onWashWaterTemperatureChange = { value -> viewModel.run { it.setWashWaterTemperature(value) } },
+        onOpenValley = onOpenValley,
+        onBack = onBack,
+    )
+}
+
+/** Off-peak page. From Dock Settings the settings are already read; opened on its own it reads them first. */
+@Composable
+fun VacuumValleyScreen(viewModel: VacuumViewModel, onBack: () -> Unit, fetchOnEntry: Boolean = false) {
+    val repository = viewModel.repository
+    val valleySettings by repository.valleySettings.collectAsState()
+    if (fetchOnEntry) LaunchedOnEntry { runCatching { repository.fetchValleySettings() } }
+    ValleyScreen(
+        valleySettings = valleySettings,
+        onEnable = { sh, sm, eh, em -> viewModel.run { it.setValley(sh, sm, eh, em) } },
+        onDisable = { viewModel.run { it.disableValley() } },
+        onBack = onBack,
+    )
 }

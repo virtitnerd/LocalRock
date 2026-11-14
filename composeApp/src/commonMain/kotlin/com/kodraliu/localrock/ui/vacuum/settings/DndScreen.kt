@@ -32,6 +32,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.DndSettings
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,4 +140,18 @@ private fun NumberStepper2(label: String, value: Int, range: IntRange, step: Int
             }
         }
     }
+}
+
+@Composable
+fun VacuumDndScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val repository = viewModel.repository
+    val scope = rememberCoroutineScope()
+    val dndSettings by repository.dndSettings.collectAsState()
+    LaunchedOnEntry { runCatching { repository.fetchDndSettings() } }
+    DndScreen(
+        dndSettings = dndSettings,
+        onEnable = { sh, sm, eh, em -> scope.launch { runCatching { repository.setDnd(sh, sm, eh, em) } } },
+        onDisable = { scope.launch { runCatching { repository.disableDnd() } } },
+        onBack = onBack,
+    )
 }
