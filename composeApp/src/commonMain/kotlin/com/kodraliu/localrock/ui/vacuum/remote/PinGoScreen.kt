@@ -1,10 +1,7 @@
 package com.kodraliu.localrock.ui.vacuum
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,16 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
-import com.kodraliu.localrock.ui.AppColors
 
 @Composable
 fun VacuumPinGoScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
@@ -70,8 +60,8 @@ private fun PinGoScreen(
     onGoto: (x: Int, y: Int, onSent: () -> Unit) -> Unit,
     onBack: () -> Unit,
 ) {
-    var tapPoint by remember { mutableStateOf<Offset?>(null) }
-    var imageSize by remember { mutableStateOf(IntSize.Zero) }
+    // The pin is kept as a map cell, so it stays on the same spot whatever size the map is drawn at.
+    var pinCell by remember { mutableStateOf<Offset?>(null) }
     var sent by remember { mutableStateOf(false) }
     var outsideRoom by remember { mutableStateOf(false) }
 
@@ -83,15 +73,13 @@ private fun PinGoScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
-                    if (tapPoint != null && parsedMap != null && !sent) {
+                    if (pinCell != null && parsedMap != null && !sent) {
                         TextButton(enabled = !busy, onClick = {
-                            val tp = tapPoint ?: return@TextButton
+                            val cell = pinCell ?: return@TextButton
                             val pm = parsedMap ?: return@TextButton
-                            if (imageSize.width > 0 && imageSize.height > 0) {
-                                // app_goto_target takes robot millimetres, not bitmap cells (#34).
-                                val (xMm, yMm) = pm.canvasToMm(tp, imageSize.width.toFloat(), imageSize.height.toFloat())
-                                onGoto(xMm, yMm) { if (tapPoint == tp) sent = true }
-                            }
+                            // app_goto_target takes robot millimetres, not bitmap cells (#34).
+                            val (xMm, yMm) = pm.cellToMm(cell)
+                            onGoto(xMm, yMm) { if (pinCell == cell) sent = true }
                         }) { Text("Go") }
                     }
                 },
@@ -117,49 +105,25 @@ private fun PinGoScreen(
                     }
                 }
             } else {
-                val bitmap = rememberMapBitmap(parsedMap)
-                val aspectRatio = parsedMap.width.toFloat() / parsedMap.height.toFloat()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Canvas(
-                        modifier = Modifier
-                            .aspectRatio(aspectRatio)
-                            .onSizeChanged { imageSize = it }
-                            .pointerInput(parsedMap) {
-                                detectTapGestures { offset ->
-                                    if (parsedMap.isRoomFloorAt(offset, size.width.toFloat(), size.height.toFloat())) {
-                                        tapPoint = offset
-                                        sent = false
-                                        outsideRoom = false
-                                    } else {
-                                        outsideRoom = true
-                                    }
-                                }
-                            },
-                    ) {
-                        drawImage(
-                            image = bitmap,
-                            srcOffset = IntOffset.Zero,
-                            srcSize = IntSize(bitmap.width, bitmap.height),
-                            dstOffset = IntOffset.Zero,
-                            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                            filterQuality = FilterQuality.None,
-                        )
-                        tapPoint?.let { tp ->
-                            drawCircle(color = AppColors.AccentRed.copy(alpha = 0.85f), radius = 22f, center = tp)
-                            drawCircle(color = Color.White, radius = 9f, center = tp)
+                PinGoMap(
+                    map = parsedMap,
+                    pinCell = pinCell,
+                    onTapCell = { cell ->
+                        if (parsedMap.isRoomFloorAt(cell, parsedMap.width.toFloat(), parsedMap.height.toFloat())) {
+                            pinCell = cell
+                            sent = false
+                            outsideRoom = false
+                        } else {
+                            outsideRoom = true
                         }
-                    }
-                }
+                    },
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                )
                 Text(
                     text = when {
                         outsideRoom -> "Pins can only go inside a room."
                         sent -> "Command sent! Robot is heading there."
-                        tapPoint != null -> "Target set — tap Go to send the robot there."
+                        pinCell != null -> "Target set. Tap Go to send the robot there."
                         else -> "Tap on the map to set a destination."
                     },
                     modifier = Modifier
