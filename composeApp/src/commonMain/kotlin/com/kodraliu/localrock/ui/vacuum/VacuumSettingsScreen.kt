@@ -108,6 +108,7 @@ import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.AdvertisedFeature
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.shared.vacuum.CleanRecord
+import com.kodraliu.localrock.shared.vacuum.carpetModeOptions
 import com.kodraliu.localrock.shared.vacuum.CleanSummary
 import com.kodraliu.localrock.shared.vacuum.PatrolThumbnail
 import com.kodraliu.localrock.shared.vacuum.ConsumableStatus
@@ -1686,7 +1687,7 @@ private fun CarpetScreen(
     onBack: () -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val options = listOf("Avoid carpet", "Standard", "Carpet boost")
+    val options = carpetModeOptions(carpetMode)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1702,7 +1703,7 @@ private fun CarpetScreen(
                         icon = Icons.Default.GridView,
                         iconTint = AppColors.Good,
                         title = "Carpet mode",
-                        subtitle = options.getOrElse(carpetMode) { "Standard" },
+                        subtitle = options.getOrElse(carpetMode) { "Mode $carpetMode" },
                         onClick = { showDialog = true },
                     )
                 }
