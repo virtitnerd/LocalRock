@@ -48,7 +48,7 @@ fun finishReasonLabel(record: CleanRecord): String =
 fun cleanRecordTags(record: CleanRecord): List<String> = buildList {
     startTypeLabel(record.startType)?.let { add(it) }
     cleanTypeLabel(record.cleanType)?.let { add(it) }
-    if (record.dustCollected) add("Dust collected")
+    if (record.dustCollectionCount > 0) add("Dust collection x ${record.dustCollectionCount}")
     if (record.washCount > 0) add("Mop wash x ${record.washCount}")
 }
 

@@ -48,7 +48,7 @@ fun parseCleanRecord(result: JsonElement, recordId: Long): CleanRecord? {
             startType = element["start_type"]?.jsonPrimitive?.intOrNull ?: 0,
             cleanType = element["clean_type"]?.jsonPrimitive?.intOrNull ?: 0,
             finishReason = element["finish_reason"]?.jsonPrimitive?.intOrNull ?: 0,
-            dustCollected = element["dust_collection_status"]?.jsonPrimitive?.intOrNull == 1,
+            dustCollectionCount = element["dust_collection_status"]?.jsonPrimitive?.intOrNull ?: 0,
             washCount = element["wash_count"]?.jsonPrimitive?.intOrNull ?: 0,
             cleanedAreaMm2 = element["cleaned_area"]?.jsonPrimitive?.longOrNull,
         )

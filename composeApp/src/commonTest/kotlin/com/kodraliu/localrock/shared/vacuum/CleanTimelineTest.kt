@@ -60,7 +60,7 @@ class CleanTimelineTest {
         assertEquals(1794589278L, error.time)
         assertEquals(5, error.code)
         assertEquals(1, error.subCode)
-        assertEquals("An error occurs. (5-1)", CleanTimelineLabels.title(error))
+        assertEquals("An error occurs.(5-1)", CleanTimelineLabels.title(error))
         assertEquals("Main brush jammed", CleanTimelineLabels.detail(error))
         val resume = steps.first { it is CleanTimelineStep.Resume && it.time > error.time }
         assertEquals(1794589892L, resume.time)
@@ -92,6 +92,34 @@ class CleanTimelineTest {
     }
 
     @Test
+    fun an_unreachable_room_is_its_own_node_with_the_official_text() {
+        val failed = fullRun().filterIsInstance<CleanTimelineStep.Room>().filter { it.unreachable }
+        assertEquals(1, failed.size)
+        assertEquals(8, failed.single().segmentId)
+        assertEquals(1794596026L, failed.single().time)
+        assertEquals("Cleaning path abnormal.", CleanTimelineLabels.detail(failed.single()))
+        assertNull(CleanTimelineLabels.detail(fullRun().filterIsInstance<CleanTimelineStep.Room>().first()))
+    }
+
+    @Test
+    fun rooms_carry_their_mode_chip_like_the_start_node() {
+        val room = fullRun().filterIsInstance<CleanTimelineStep.Room>().first()
+        val settings = assertNotNull(room.settings)
+        assertEquals(listOf("Vac & Mop", "Standard", "Level 15", "Standard", "x1"), CleanTimelineLabels.chipParts(settings))
+        assertEquals("Vacuum", CleanTimelineLabels.modeName(settings.copy(water = 0)))
+        assertEquals("Mop", CleanTimelineLabels.modeName(settings.copy(suction = 5)))
+    }
+
+    @Test
+    fun big_nodes_are_start_rooms_extra_passes_and_finish() {
+        val steps = fullRun()
+        assertTrue(CleanTimeline.isMajor(steps.first()))
+        assertTrue(CleanTimeline.isMajor(steps.last()))
+        assertTrue(steps.filterIsInstance<CleanTimelineStep.WashMop>().none { CleanTimeline.isMajor(it) })
+        assertTrue(steps.filterIsInstance<CleanTimelineStep.Error>().none { CleanTimeline.isMajor(it) })
+    }
+
+    @Test
     fun the_stain_re_mop_pass_comes_from_event_61_not_the_room_event() {
         val extra = fullRun().filterIsInstance<CleanTimelineStep.ExtraClean>().single()
         assertEquals(4, extra.reason)
@@ -116,7 +144,7 @@ class CleanTimelineTest {
 
     @Test
     fun error_label_without_a_sub_error_has_no_dash() {
-        assertEquals("An error occurs. (38)", CleanTimelineLabels.title(CleanTimelineStep.Error(0L, 38, 0)))
+        assertEquals("An error occurs.(38)", CleanTimelineLabels.title(CleanTimelineStep.Error(0L, 38, 0)))
         assertEquals("An error occurs.", CleanTimelineLabels.title(CleanTimelineStep.Error(0L, 0, 0)))
         assertEquals("5-1", CleanTimelineLabels.errorCodeText(5, 1))
     }

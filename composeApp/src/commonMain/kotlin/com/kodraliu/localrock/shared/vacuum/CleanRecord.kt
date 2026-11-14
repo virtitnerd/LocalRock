@@ -10,7 +10,7 @@ data class CleanRecord(
     val startType: Int = 0,
     val cleanType: Int = 0,
     val finishReason: Int = 0,
-    val dustCollected: Boolean = false,
+    val dustCollectionCount: Int = 0, // dust_collection_status counts auto-empties in the run
     val washCount: Int = 0,
     val cleanedAreaMm2: Long? = null,
 ) {

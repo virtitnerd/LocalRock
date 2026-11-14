@@ -8,7 +8,7 @@ class CleanRecordLabelsTest {
     private val scheduled = CleanRecord(
         beginEpoch = 1793458813, endEpoch = 1793476533, durationSeconds = 9911, areaMm2 = 92_852_500,
         errorCode = 0, complete = 1, startType = 3, cleanType = 1, finishReason = 52,
-        dustCollected = true, washCount = 17, cleanedAreaMm2 = 122_650_000,
+        dustCollectionCount = 4, washCount = 17, cleanedAreaMm2 = 122_650_000,
     )
     private val interrupted = CleanRecord(
         beginEpoch = 1793490296, endEpoch = 1793493676, durationSeconds = 50, areaMm2 = 0,
@@ -19,7 +19,7 @@ class CleanRecordLabelsTest {
     @Test
     fun scheduledRunReadsLikeTheOfficialApp() {
         assertEquals("Finished cleaning", finishReasonLabel(scheduled))
-        assertEquals(listOf("Schedules", "Full", "Dust collected", "Mop wash x 17"), cleanRecordTags(scheduled))
+        assertEquals(listOf("Schedules", "Full", "Dust collection x 4", "Mop wash x 17"), cleanRecordTags(scheduled))
         assertEquals("165 min", cleanDurationLabel(scheduled.durationSeconds))
         assertEquals("123 m²", cleanAreaLabel(scheduled.shownAreaMm2))
     }
