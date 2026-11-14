@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
@@ -345,6 +346,7 @@ fun VacuumDetailScreen(
             MoreAction.CAMERA -> { panel = null; onCamera() }
             MoreAction.HISTORY -> { panel = null; onHistory() }
             MoreAction.EDIT_MAP -> { panel = null; onMapEdit() }
+            MoreAction.FIND_PET -> { panel = null; viewModel.run("Looking for your pet") { it.startPetSearch() } }
         }
     }
 
@@ -359,7 +361,7 @@ fun VacuumDetailScreen(
 
     val PanelBody: @Composable (DetailPanel) -> Unit = { currentPanel ->
         when (currentPanel) {
-            DetailPanel.More -> MoreActionsSheetContent(onAction = onMoreAction)
+            DetailPanel.More -> MoreActionsSheetContent(showFindPet = viewModel.supportsPetSearch, onAction = onMoreAction)
 
             DetailPanel.Routines -> RoutinesSheetContent(
                 state = routines,
@@ -639,7 +641,7 @@ fun VacuumDetailScreen(
                             }
                             PanelBody(headed)
                         } else {
-                            MoreActionsSheetContent(onAction = onMoreAction)
+                            MoreActionsSheetContent(showFindPet = viewModel.supportsPetSearch, onAction = onMoreAction)
                         }
                     }
 
@@ -1465,10 +1467,10 @@ private fun ControlBar(
 }
 
 
-private enum class MoreAction { ROOMS, ZONES, PIN_GO, REMOTE, SCHEDULE, CAMERA, DOCK, HISTORY, MAPS, EDIT_MAP, ROUTINES }
+private enum class MoreAction { ROOMS, ZONES, PIN_GO, REMOTE, SCHEDULE, CAMERA, DOCK, HISTORY, MAPS, EDIT_MAP, ROUTINES, FIND_PET }
 
 @Composable
-private fun MoreActionsSheetContent(onAction: (MoreAction) -> Unit) {
+private fun MoreActionsSheetContent(showFindPet: Boolean, onAction: (MoreAction) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1502,7 +1504,11 @@ private fun MoreActionsSheetContent(onAction: (MoreAction) -> Unit) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MoreActionItem(Modifier.weight(1f), Icons.AutoMirrored.Filled.PlaylistPlay, "Routines", MaterialTheme.colorScheme.secondary) { onAction(MoreAction.ROUTINES) }
-            Spacer(Modifier.weight(1f))
+            if (showFindPet) {
+                MoreActionItem(Modifier.weight(1f), Icons.Default.Pets, "Find my pet", AppColors.AccentYellow) { onAction(MoreAction.FIND_PET) }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
             Spacer(Modifier.weight(1f))
         }
     }
