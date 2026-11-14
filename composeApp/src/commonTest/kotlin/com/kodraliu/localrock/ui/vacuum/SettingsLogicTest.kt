@@ -113,4 +113,11 @@ class SettingsLogicTest {
     fun clock_text_pads_hours_and_minutes() {
         assertEquals("07:05", clockText(7, 5))
     }
+
+    @Test
+    fun robot_voice_row_shows_the_volume_level() {
+        assertEquals("Volume 75%", robotVoiceDetail(75))
+        assertEquals("Volume 100%", robotVoiceDetail(130))
+        assertEquals("Volume", robotVoiceDetail(null))
+    }
 }

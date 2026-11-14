@@ -268,6 +268,18 @@ class VacuumViewModel(
                 runCatching { repository.rooms() }
                 runCatching { repository.fetchRobotFeatureSet() }
             }
+            // Preload every settings page now so a page opens complete instead of filling in.
+            launch {
+                container.awaitMqttConnected()
+                launch { runCatching { repository.fetchBetaFeatures(betaFeatureDefs) } }
+                launch { runCatching { repository.fetchRobotSettings() } }
+                launch { runCatching { repository.fetchDockSettings() } }
+                launch { runCatching { repository.fetchDndSettings() } }
+                launch { runCatching { repository.fetchTimers() } }
+                launch { runCatching { repository.fetchMopMode() } }
+                launch { runCatching { NewestRunCache.load(repository) } }
+                if (capabilities.value.chargingMode) launch { runCatching { repository.fetchValleySettings() } }
+            }
             // A robot that never answers (dead battery, lost Wi-Fi, stuck) leaves the screen empty;
             // the server still holds where it was last seen and what it last reported.
             launch {

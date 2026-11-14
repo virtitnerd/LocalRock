@@ -30,20 +30,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.http.currentEpochSeconds
-import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
-import com.kodraliu.localrock.shared.vacuum.getCleanRecord
 import com.kodraliu.localrock.shared.vacuum.inSection
-import com.kodraliu.localrock.shared.vacuum.parseCleanRecord
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.components.SettingGroup
 import com.kodraliu.localrock.ui.components.SettingsCategoryRow
@@ -82,23 +76,22 @@ fun VacuumSettingsScreen(
     val timers by repository.timers.collectAsState()
     val consumables by repository.consumableStatus.collectAsState()
     val history by repository.cleanHistory.collectAsState()
-    var newestRun by remember { mutableStateOf<CleanRecord?>(null) }
+    val robotSettings by repository.robotSettings.collectAsState()
+    val newestRun by NewestRunCache.flow(repository).collectAsState()
 
     LoadFeatureRowsOnEntry(viewModel)
     LaunchedOnEntry {
         runCatching { repository.fetchTimers() }
         runCatching { repository.fetchConsumableStatus() }
-        // Only the newest run is read here; the History page reads the rest.
-        if (repository.cleanHistory.value.isEmpty()) runCatching {
-            val id = repository.fetchCleanSummary().firstOrNull() ?: return@runCatching
-            repository.session.getCleanRecord(id).result?.let { parseCleanRecord(it, id) }?.let { newestRun = it }
-        }
+        // The robot preload already read the newest run; this is a silent refresh.
+        if (repository.cleanHistory.value.isEmpty()) runCatching { NewestRunCache.load(repository) }
     }
 
     val now = Instant.fromEpochSeconds(currentEpochSeconds()).toLocalDateTime(TimeZone.currentSystemDefault())
     val (duration, area) = lastCleanFigures(lastCleanRecord(history) ?: newestRun)
-    val floorRows = floorFeatureGroups(betaFeatures).isNotEmpty()
-    val obstacleRows = betaFeatures.inSection(FeatureSection.OBSTACLE).isNotEmpty()
+    // Decided from what the robot advertises, known on open, so these rows never pop in after the reads.
+    val floorRows = viewModel.betaFeatureDefs.any { it.section == FeatureSection.FLOOR } || floorFeatureGroups(betaFeatures).isNotEmpty()
+    val obstacleRows = viewModel.betaFeatureDefs.any { it.section == FeatureSection.OBSTACLE } || betaFeatures.inSection(FeatureSection.OBSTACLE).isNotEmpty()
 
     SettingsPage(title = SettingsStrings.TITLE, onBack = onBack) {
         item { HistoryHeaderCard(duration, area, onClick = { onNavigate(VacuumHistory) }) }
@@ -143,7 +136,7 @@ fun VacuumSettingsScreen(
                 SettingsCategoryRow(
                     Icons.Default.RecordVoiceOver, AppColors.Water,
                     if (caps.voiceAssistant) SettingsStrings.VOICE_ASSISTANT else SettingsStrings.ROBOT_VOICE,
-                    SettingsStrings.ROBOT_VOICE_DETAIL,
+                    robotVoiceDetail(robotSettings.volume),
                 ) { onNavigate(VacuumSettingsRobotVoice) }
                 if (caps.remoteViewing) {
                     RowDivider()

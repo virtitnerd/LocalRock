@@ -40,8 +40,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.datetime.TimeZone
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -1352,16 +1357,19 @@ class VacuumRepository(
         )
     }
 
-    /** Stops at the first option the robot does not reply to, so an offline robot costs one timeout, not one per option. */
+    /** Reads the first option alone so an offline robot costs one timeout, then the rest side by side. */
     suspend fun fetchBetaFeatures(defs: List<BetaFeatureDef>) {
         _betaFeaturesLoading.value = true
         try {
-            val states = mutableListOf<BetaFeatureState>()
-            for (def in defs) {
-                val state = readBetaFeature(def) ?: break
-                if (state.answered && state.toggleable) states += state
+            val first = defs.firstOrNull()?.let { readBetaFeature(it) ?: return }
+            // Six reads in flight: a page loads in about a second without flooding the robot.
+            val gate = Semaphore(6)
+            val rest = coroutineScope {
+                defs.drop(1).map { def -> async { gate.withPermit { readBetaFeature(def) } } }.awaitAll()
             }
-            _betaFeatures.value = states.withoutReplaced()
+            _betaFeatures.value = (listOfNotNull(first) + rest.filterNotNull())
+                .filter { it.answered && it.toggleable }
+                .withoutReplaced()
         } finally {
             _betaFeaturesLoading.value = false
         }

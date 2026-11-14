@@ -47,6 +47,11 @@ internal fun suppliesDue(status: ConsumableStatus?): Boolean {
 internal fun maintenanceDetail(status: ConsumableStatus?): String =
     if (suppliesDue(status)) SettingsStrings.MAINTENANCE_DUE else SettingsStrings.MAINTENANCE_NORMAL
 
+/** The Robot Voice row subtitle: the volume level when known. */
+internal fun robotVoiceDetail(volume: Int?): String =
+    volume?.let { SettingsStrings.ROBOT_VOICE_DETAIL_LEVEL.replace("{level}", it.coerceIn(0, 100).toString()) }
+        ?: SettingsStrings.ROBOT_VOICE_DETAIL
+
 /** The newest run, which the header card sums up. */
 internal fun lastCleanRecord(records: List<CleanRecord>): CleanRecord? = records.maxByOrNull { it.beginEpoch }
 

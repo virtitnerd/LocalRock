@@ -42,6 +42,7 @@ object SettingsStrings {
     const val OBSTACLE_DETAIL = "Intelligently recognizes and avoids obstacles that may block its way." // verified
     const val MANAGE_MAPS_DETAIL = "Edit rooms, zones and saved maps" // inferred
     const val ROBOT_VOICE_DETAIL = "Volume" // inferred
+    const val ROBOT_VOICE_DETAIL_LEVEL = "Volume {level}%" // inferred
     const val REMOTE_VIEWING_DETAIL = "Camera and video settings" // inferred
     const val MATTER_DETAIL = "Add the robot to Apple Home, Google Home and more" // inferred
     const val MORE_OPTIONS_DETAIL = "Do Not Disturb, charging, lights and child lock" // inferred
