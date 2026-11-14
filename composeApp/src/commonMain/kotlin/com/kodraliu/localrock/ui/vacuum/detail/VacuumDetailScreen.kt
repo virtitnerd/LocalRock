@@ -474,6 +474,7 @@ fun VacuumDetailScreen(
         },
     ) { paddingValues ->
         val dividerColor = MaterialTheme.colorScheme.outlineVariant
+        val mapDisplay by rememberMapDisplay(viewModel)
         val MapHero: @Composable (Modifier) -> Unit = { modifier ->
             MapHeroSection(
                 deviceId = viewModel.repository.duid,
@@ -503,6 +504,7 @@ fun VacuumDetailScreen(
                 mapViewport = mapViewport,
                 faintRoute = status.state !in ACTIVE_CLEANING_STATES && status.state != VacuumStateCodes.PAUSED,
                 modifier = modifier,
+                display = mapDisplay,
             )
         }
 

@@ -41,7 +41,6 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import com.kodraliu.localrock.ui.components.ComingSoonScreen
-import com.kodraliu.localrock.ui.strings.MapStrings
 import com.kodraliu.localrock.ui.strings.SettingsStrings
 import com.kodraliu.localrock.ui.vacuum.FirmwareUpdateScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumBetaFeaturesScreen
@@ -49,6 +48,7 @@ import com.kodraliu.localrock.ui.vacuum.VacuumCarpetScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumDndScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumDockSettingsScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumFloorSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.MapDetailsScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceDetailScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMatterScreen
@@ -215,9 +215,7 @@ fun AppNavHost() {
                 VacuumProductInfoScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumManageMaps>(navController, container) { MapEditScreen(viewModel = it, onBack = back) }
-            vacuumComposable<VacuumMapDetails>(navController, container) {
-                ComingSoonScreen(title = MapStrings.MAP_DETAILS, onBack = back)
-            }
+            vacuumComposable<VacuumMapDetails>(navController, container) { MapDetailsScreen(viewModel = it, onBack = back) }
         }
     }
 }

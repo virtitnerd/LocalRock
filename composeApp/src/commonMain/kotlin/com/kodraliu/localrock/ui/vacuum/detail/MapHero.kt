@@ -106,6 +106,7 @@ internal fun MapHeroSection(
     mapViewport: LiveMapViewport,
     faintRoute: Boolean,
     modifier: Modifier = Modifier,
+    display: MapDisplay = MapDisplay.Default,
 ) {
     val scheme = MaterialTheme.colorScheme
     // Black in both themes, as in the Roborock app: the bright room colours need it, and the gaps in
@@ -132,6 +133,7 @@ internal fun MapHeroSection(
                 providedMapViewport = mapViewport,
                 faintRoute = faintRoute,
                 modifier = Modifier.fillMaxSize(),
+                display = display,
             )
         } else {
             if (mapLoading) MapLoadingState(Modifier.fillMaxSize())
@@ -314,15 +316,16 @@ internal fun VacuumMapImage(
     viewportScope: Any? = null,
     providedMapViewport: LiveMapViewport? = null,
     faintRoute: Boolean = false,
+    display: MapDisplay = MapDisplay.Default,
 ) {
     // Drawn larger than the grid so a zoomed-in view stays crisp; every length below that is measured
     // in the layers' own pixels (wall height, label lift) is in cells times this.
     val scale = remember(map) { supersampleFor(map) }
-    val (bitmap, overlayBitmap) = rememberMapLayers(map, scale)
+    val (bitmap, overlayBitmap) = rememberMapLayers(map, scale, display)
     val darkMap = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val walls = rememberWallBitmaps(map, scale, enabled = is3D)
     val selectionBitmap = rememberSelectionBitmap(map, selectedRoomIds, scale)
-    val floorShapes = remember(map.floorKey()) { map.floorPlanShapes() }
+    val floorShapes = remember(map.floorKey(), display.homeLayout) { map.floorPlanShapes(display.homeLayout) }
     val wallHeight = WALL_HEIGHT_CELLS * scale
     val labelRooms = remember(map.rooms, map.eraserZones) { map.rooms.filter { it.labelNormX != null && it.labelNormY != null && it.id !in map.erasedRoomIds } }
     val textMeasurer = rememberTextMeasurer()
@@ -339,6 +342,7 @@ internal fun VacuumMapImage(
     val roomIcons = rememberRoomIconPainters()
     val currentOnRoomTap by rememberUpdatedState(onRoomTap)
     val currentOnObstacleTap by rememberUpdatedState(onObstacleTap)
+    val currentDisplay by rememberUpdatedState(display)
     val currentYaw by rememberUpdatedState(yawDegrees)
     val currentOnYawBy by rememberUpdatedState(onYawBy)
     val currentTilt by rememberUpdatedState(tiltDegrees)
@@ -347,7 +351,7 @@ internal fun VacuumMapImage(
     // The view is framed on the floor plan, once per map identity: a live update replaces the map object every
     // few seconds, and a plan that is still growing must not re-centre and rescale under the user's fingers.
     val identity = map.viewportIdentity(viewportScope)
-    val bounds = remember(identity) { map.contentBoundsNorm() }
+    val bounds = remember(identity, display.homeLayout) { map.contentBoundsNorm(display.homeLayout) }
     val mapViewport = providedMapViewport ?: remember { LiveMapViewport() }
     LaunchedEffect(identity, is3D) { mapViewport.frameIfNeeded(identity to is3D) }
     // The gesture handlers outlive a live update, so they read the current map and view, not the ones they started with.
@@ -414,7 +418,7 @@ internal fun VacuumMapImage(
                         onTap = { tap ->
                             // An obstacle dot is small, so a tap near one opens it before any room.
                             val tapView = drawn.forHitTest { currentViewFor(size.width.toFloat(), size.height.toFloat()) }
-                            currentMap.obstacleAt(tap, tapView, currentBitmap.width / currentMap.width.toFloat(), 20.dp.toPx())
+                            if (currentDisplay.obstacle) currentMap.obstacleAt(tap, tapView, currentBitmap.width / currentMap.width.toFloat(), 20.dp.toPx())
                                 ?.let { currentOnObstacleTap(it); return@detectTapGestures }
                             // The same transform that drew the map, run backwards, so a tap lands on
                             // the room under the finger at any heading, zoom or tilt.
@@ -438,7 +442,7 @@ internal fun VacuumMapImage(
             selectionBitmap?.let { drawMapLayer(it, view, 0f, quality) }
             drawFloorPlanStrokes(floorShapes, view, scale)
             drawMapLayer(overlayBitmap, view, 0f, quality)
-            drawRouteAndMarkers(map, view, scale, darkMap, faintRoute)
+            drawRouteAndMarkers(map, view, scale, darkMap, faintRoute, pinLabels = textMeasurer)
             if (is3D && walls != null) {
                 val (wallSide, wallTop) = walls
                 // Walls rise by stacking the wall layer at climbing heights, then capping it with the
@@ -450,12 +454,13 @@ internal fun VacuumMapImage(
             }
 
             // Under the labels, so a name is never hidden by a badge. A tap still opens the obstacle first.
-            drawObstacles(map, view, bitmap.width / map.width.toFloat())
+            if (display.obstacle) drawObstacles(map, view, bitmap.width / map.width.toFloat())
 
             // Labels are drawn outside the zoom transform so they stay a constant, legible size
             // instead of growing to 8x with the map. Selected rooms carry their cleaning order,
             // so selection reads without relying on the highlight colour alone.
-            for (room in labelRooms) {
+            // With Room Names off in Map Details only the numbered pills of selected rooms stay.
+            for (room in if (display.roomNames) labelRooms else labelRooms.filter { it.id in selectedRoomIds }) {
                 val normX = room.labelNormX ?: continue
                 val normY = room.labelNormY ?: continue
                 val at = view.toScreen(

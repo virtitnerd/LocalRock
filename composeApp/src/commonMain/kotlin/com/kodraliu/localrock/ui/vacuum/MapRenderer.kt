@@ -90,12 +90,21 @@ private val DarkPalette = MapPalette(
  * the raw system setting, so the map never disagrees with the surface it sits on.
  */
 @Composable
-fun rememberMapBitmap(map: ParsedMap, drawRestrictions: Boolean = true, floorPlan: Boolean = true): ImageBitmap {
+fun rememberMapBitmap(
+    map: ParsedMap,
+    drawRestrictions: Boolean = true,
+    floorPlan: Boolean = true,
+    textures: Boolean = true,
+    showErased: Boolean = false,
+): ImageBitmap {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return remember(map, dark, drawRestrictions, floorPlan) {
-        renderMap(map, if (dark) DarkPalette else LightPalette, drawRestrictions, floorPlan)
+    return remember(map, dark, drawRestrictions, floorPlan, textures, showErased) {
+        renderMap(map, if (dark) DarkPalette else LightPalette, drawRestrictions, FloorLook(floorPlan, textures, showErased))
     }
 }
+
+/** How the floor is painted: [floorPlan] polygons or raw cells, [textures] for floor type and carpet, [showErased] for the Remove tool. */
+private data class FloorLook(val floorPlan: Boolean = true, val textures: Boolean = true, val showErased: Boolean = false)
 
 /**
  * How many times larger than the grid the detail screen draws its layers: as large as keeps the
@@ -110,14 +119,15 @@ internal fun supersampleFor(map: ParsedMap): Int = (2400 / maxOf(map.width, map.
  * under it.
  */
 @Composable
-fun rememberMapLayers(map: ParsedMap, scale: Int): Pair<ImageBitmap, ImageBitmap> {
+fun rememberMapLayers(map: ParsedMap, scale: Int, display: MapDisplay = MapDisplay.Default): Pair<ImageBitmap, ImageBitmap> {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val palette = if (dark) DarkPalette else LightPalette
     // A live update replaces the map object every few seconds. The floor and the zones only depend on the
     // grid, rooms and restrictions, so neither is redrawn for a robot that has merely moved; the route and
     // the markers are drawn as vectors on top.
-    val floor = remember(map.floorKey(), dark, scale) { renderLayer(map, palette, scale, overlay = false) }
-    val overlay = remember(map.restrictionsKey(), dark, scale) { renderLayer(map, palette, scale, overlay = true) }
+    val look = FloorLook(floorPlan = display.homeLayout, textures = display.floorType)
+    val floor = remember(map.floorKey(), dark, scale, look) { renderLayer(map, palette, scale, overlay = false, look) }
+    val overlay = remember(map.restrictionsKey(), dark, scale) { renderLayer(map, palette, scale, overlay = true, look) }
     return floor to overlay
 }
 
@@ -291,10 +301,10 @@ fun ParsedMap.contentBoundsNorm(floorPlan: Boolean = true): MapContentBounds {
 }
 
 /** [drawRestrictions] is false for the editor, which draws the shapes it is editing itself. */
-private fun renderMap(map: ParsedMap, palette: MapPalette, drawRestrictions: Boolean, floorPlan: Boolean): ImageBitmap {
+private fun renderMap(map: ParsedMap, palette: MapPalette, drawRestrictions: Boolean, look: FloorLook): ImageBitmap {
     val bitmap = ImageBitmap(map.width, map.height)
     val canvas = Canvas(bitmap)
-    drawFloor(canvas, map, palette, floorPlan)
+    drawFloor(canvas, map, palette, look)
     drawOverlays(canvas, map, palette, drawRestrictions)
     return bitmap
 }
@@ -305,11 +315,11 @@ private fun renderMap(map: ParsedMap, palette: MapPalette, drawRestrictions: Boo
  * room never hides the path across it. Drawn larger, a thin path or a marker's edge stays crisp
  * when zoomed in instead of being one blurred grid cell.
  */
-private fun renderLayer(map: ParsedMap, palette: MapPalette, scale: Int, overlay: Boolean): ImageBitmap {
+private fun renderLayer(map: ParsedMap, palette: MapPalette, scale: Int, overlay: Boolean, look: FloorLook): ImageBitmap {
     val bitmap = ImageBitmap(map.width * scale, map.height * scale)
     val canvas = Canvas(bitmap)
     canvas.scale(scale.toFloat(), scale.toFloat())
-    if (overlay) drawOverlays(canvas, map, palette, drawRestrictions = true, includeRoute = false) else drawFloor(canvas, map, palette, strokes = false)
+    if (overlay) drawOverlays(canvas, map, palette, drawRestrictions = true, includeRoute = false) else drawFloor(canvas, map, palette, look, strokes = false)
     return bitmap
 }
 
@@ -317,7 +327,7 @@ private fun renderLayer(map: ParsedMap, palette: MapPalette, scale: Int, overlay
 internal fun ParsedMap.floorPlanShapes(floorPlan: Boolean = true): List<FloorPlanShape> =
     if (originalGrid != null && floorPlan) buildFloorPlan(zoneLines.filter { it.segment !in erasedRoomIds }, FloorPlanFrame(height)) else emptyList()
 
-private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette, floorPlan: Boolean = true, strokes: Boolean = true) {
+private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette, look: FloorLook, strokes: Boolean = true) {
     // The cells are masked by a rounded outline of the plan, so its edges are smooth rather than
     // stair steps. The mask is a path drawn over them, which anti-aliases where a clip would not.
     canvas.saveLayer(Rect(0f, 0f, map.width.toFloat(), map.height.toFloat()), Paint())
@@ -329,10 +339,11 @@ private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette, floor
     val h = map.height
     val grid = map.grid
     val raw = map.originalGrid
-    val carpet = map.carpetMask
+    val carpet = if (look.textures) map.carpetMask else null
     // Rooms that have a floor-plan polygon are painted from it; the others, and every map without block 55, from the cells.
-    val erased = map.erasedCells
-    val shapes = map.floorPlanShapes(floorPlan)
+    val erased = if (look.showErased) null else map.erasedCells
+    val shapes = map.floorPlanShapes(look.floorPlan)
+    fun patternOf(room: Int) = if (!look.textures) FloorPattern.NONE else floorPattern(map.segmentMaterials[room], map.segmentMaterialDirections[room])
     val zoned = shapes.mapTo(HashSet()) { it.segment }
     for (shape in shapes) {
         val room = shape.segment
@@ -344,7 +355,7 @@ private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette, floor
         }
         roomPaint.color = base
         canvas.drawPath(outline, roomPaint)
-        val pattern = patterns.getOrPut(room) { floorPattern(map.segmentMaterials[room], map.segmentMaterialDirections[room]) }
+        val pattern = patterns.getOrPut(room) { patternOf(room) }
         if (pattern == FloorPattern.NONE && carpet == null) continue
         // The texture and carpet hatching are laid cell by cell, clipped to the polygon so no ragged edge shows.
         canvas.save()
@@ -381,9 +392,7 @@ private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette, floor
                         val roomId = if (gv == 127) (flatWallRoom(grid, raw, w, h, x, y) ?: continue) else (raw[rowOff + x].toInt() ushr 3) and 0x1f
                         if (roomId in zoned) continue
                         val base = palette.rooms[slots[roomId] ?: 0]
-                        val pattern = patterns.getOrPut(roomId) {
-                            floorPattern(map.segmentMaterials[roomId], map.segmentMaterialDirections[roomId])
-                        }
+                        val pattern = patterns.getOrPut(roomId) { patternOf(roomId) }
                         val floor = if (pattern == FloorPattern.NONE) base else shaded(base, textureShade(pattern, x, y))
                         roomPaint.color = if (carpet != null && (carpet[rowOff + x].toInt() and 1) == 1) shaded(floor, carpetShade(x, y)) else floor
                         roomPaint
