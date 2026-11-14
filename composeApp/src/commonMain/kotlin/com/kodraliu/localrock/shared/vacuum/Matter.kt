@@ -14,6 +14,9 @@ const val MATTER_FEATURE_BIT = 67
 const val VIDEO_PATROL_FEATURE_BIT = 48
 const val PET_SNAPSHOT_FEATURE_BIT = 50
 
+/** The official app offers Search for the Pet on bit 48 alone; bit 50 is only the pet snapshot setting. */
+fun isPetSearchSupported(newFeatureSet: String?): Boolean = newFeatureBit(newFeatureSet, VIDEO_PATROL_FEATURE_BIT)
+
 /** The `status` values the official app reads from `matter.get_status`. */
 enum class MatterState {
     KeyNotExit, KeyCorrupt, KeyDownloading, KeyDownloadSuccess, KeyDownloadFailure, Preparing, Ready, Joined, RPCError;

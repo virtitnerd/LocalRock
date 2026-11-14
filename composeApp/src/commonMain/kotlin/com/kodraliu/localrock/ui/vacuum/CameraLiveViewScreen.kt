@@ -6,6 +6,7 @@ import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
 import com.kodraliu.localrock.shared.vacuum.startVoiceChat
 import com.kodraliu.localrock.shared.vacuum.stopVoiceChat
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kodraliu.localrock.ui.rememberMicrophonePermissionRequest
@@ -85,8 +86,10 @@ fun CameraLiveViewScreen(
     var autoStarted by remember { mutableStateOf(false) }
     var quality by remember { mutableStateOf(liveSession.quality) }
     var micOn by remember { mutableStateOf(false) }
-    var pinGoOpen by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf<CameraPanel?>(null) }
+    var gearOpen by remember { mutableStateOf(false) }
     val robotStatus by viewModel.repository.status.collectAsState()
+    val petSearch by viewModel.repository.petSearchActive.collectAsState()
     val scope = rememberCoroutineScope()
     val askMic = rememberMicrophonePermissionRequest { granted ->
         if (granted) {
@@ -200,11 +203,12 @@ fun CameraLiveViewScreen(
                     )
                     CameraSidePanel(
                         viewModel,
-                        pinGoOpen,
-                        { pinGoOpen = it },
+                        panel,
+                        { panel = it },
                         if (viewModel.supportsPetSearch) {
                             { viewModel.run("Looking for your pet") { it.startPetSearch() } }
                         } else null,
+                        viewModel.supportsPatrol,
                         Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp, bottom = 12.dp),
                     )
                     val stats by (peer?.stats ?: noStats).collectAsState()
@@ -213,7 +217,10 @@ fun CameraLiveViewScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                     Text(
-                        robotStatus.state?.let { VacuumStateCodes.describe(it) } ?: "",
+                        when {
+                            robotStatus.state == VacuumStateCodes.PATROLLING && (robotStatus.isPetPatrol || petSearch) -> "Searching for pets"
+                            else -> robotStatus.state?.let { VacuumStateCodes.describe(it) } ?: ""
+                        },
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                     )
@@ -257,12 +264,15 @@ fun CameraLiveViewScreen(
                 }
             }
 
+            if (gearOpen) CallSettingsDialog(viewModel) { gearOpen = false }
+
             Row(
                 Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp, start = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 RoundButton(Icons.AutoMirrored.Filled.ArrowBack, "Go back", Color.Black.copy(alpha = 0.45f), onBack)
                 if (state is CameraLiveSession.State.Streaming) {
+                    RoundButton(Icons.Default.Settings, "Call settings", Color.Black.copy(alpha = 0.45f)) { gearOpen = true }
                     RoundButton(
                         if (micOn) Icons.Default.CallEnd else Icons.Default.Call,
                         if (micOn) "Stop talking" else "Talk to the robot",
@@ -280,6 +290,30 @@ fun CameraLiveViewScreen(
             }
         }
     }
+}
+
+@Composable
+private fun CallSettingsDialog(viewModel: VacuumViewModel, onClose: () -> Unit) {
+    var volume by remember { mutableStateOf(50f) }
+    val scope = rememberCoroutineScope()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Call volume") },
+        text = {
+            Column {
+                Text("How loud the robot's speaker is during a call.", style = MaterialTheme.typography.bodySmall)
+                androidx.compose.material3.Slider(
+                    value = volume,
+                    onValueChange = { volume = it },
+                    valueRange = 0f..100f,
+                    onValueChangeFinished = {
+                        scope.launch { runCatching { viewModel.repository.setCallVolume(volume.toInt()) } }
+                    },
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Done") } },
+    )
 }
 
 @Composable

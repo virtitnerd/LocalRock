@@ -14,7 +14,7 @@ import com.kodraliu.localrock.shared.vacuum.firmwareInstallBlocker
 import com.kodraliu.localrock.shared.vacuum.nextFirmwareStep
 import kotlin.time.Duration.Companion.minutes
 import com.kodraliu.localrock.shared.vacuum.MATTER_FEATURE_BIT
-import com.kodraliu.localrock.shared.vacuum.PET_SNAPSHOT_FEATURE_BIT
+import com.kodraliu.localrock.shared.vacuum.isPetSearchSupported
 import com.kodraliu.localrock.shared.vacuum.VIDEO_PATROL_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.camera.CAMERA_FEATURE_BITS
 import com.kodraliu.localrock.shared.vacuum.camera.CameraLiveSession
@@ -66,7 +66,8 @@ class VacuumViewModel(
     val dockCapabilities = DockCapabilities(modelName, device.featureSet, device.newFeatureSet)
     val betaFeatureDefs = supportedBetaFeatures(device.newFeatureSet)
     val unlistedFeatures = unlistedAdvertisedFeatures(device.newFeatureSet)
-    val supportsPetSearch = newFeatureBit(device.newFeatureSet, VIDEO_PATROL_FEATURE_BIT) || newFeatureBit(device.newFeatureSet, PET_SNAPSHOT_FEATURE_BIT)
+    val supportsPatrol = newFeatureBit(device.newFeatureSet, VIDEO_PATROL_FEATURE_BIT)
+    val supportsPetSearch = isPetSearchSupported(device.newFeatureSet)
     val supportsMatter = newFeatureBit(device.newFeatureSet, MATTER_FEATURE_BIT)
     val twoKeyVideo = newFeatureBit(device.newFeatureSet, TWO_KEY_VIDEO_FEATURE_BIT)
     // Real-time video is a beta feature: shown for robots that advertise any video bit.
