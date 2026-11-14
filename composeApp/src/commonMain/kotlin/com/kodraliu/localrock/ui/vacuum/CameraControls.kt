@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -61,8 +63,12 @@ import kotlin.math.sqrt
 private const val MAX_SPEED = 0.3
 private const val MAX_TURN = 0.4
 private const val DEAD_ZONE = 0.15f
-private const val STEP_MS = 300L
-private const val MOVE_MS = 700
+// The stick is read every 25 ms and a changed command goes out at once; an unchanged one repeats every 200 ms,
+// well inside the 1500 ms the robot keeps moving, so one late command does not stop it.
+private const val POLL_MS = 25L
+private const val REPEAT_MS = 200L
+private const val MOVE_MS = 1500
+private const val CHANGE_STEP = 0.01
 
 /** A thumb stick: push up to drive, sideways to turn, harder for faster. Letting go stops the robot. */
 @Composable
@@ -79,6 +85,10 @@ fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
     val current by rememberUpdatedState(stick)
     LaunchedEffect(repository) {
         var moving = false
+        var inFlight = false
+        var lastVelocity = 0.0
+        var lastOmega = 0.0
+        var lastSent = TimeSource.Monotonic.markNow()
         while (true) {
             val s = current
             val vx = if (abs(s.x) < DEAD_ZONE) 0f else s.x
@@ -89,12 +99,33 @@ fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
                     rc.started = true
                     runCatching { repository.startRemoteControl() }
                 }
-                runCatching { repository.moveRemote(-vy * MAX_SPEED, -vx * MAX_TURN, MOVE_MS) }
+                val velocity = -vy * MAX_SPEED
+                val omega = -vx * MAX_TURN
+                val changed = abs(velocity - lastVelocity) >= CHANGE_STEP * MAX_SPEED || abs(omega - lastOmega) >= CHANGE_STEP * MAX_TURN
+                val due = lastSent.elapsedNow() >= REPEAT_MS.milliseconds
+                // Latest wins: while a send waits for its reply the next tick picks up the newest stick position.
+                if (!inFlight && (changed || due)) {
+                    inFlight = true
+                    lastVelocity = velocity
+                    lastOmega = omega
+                    lastSent = TimeSource.Monotonic.markNow()
+                    scope.launch {
+                        try {
+                            val accepted = runCatching { repository.moveRemote(velocity, omega, MOVE_MS) }.getOrDefault(true)
+                            if (!accepted) runCatching { repository.startRemoteControl() }
+                        } finally {
+                            inFlight = false
+                        }
+                    }
+                }
             } else if (moving) {
+                // Letting go stops the robot on this tick, whatever is still waiting for a reply.
                 moving = false
-                runCatching { repository.moveRemote(0.0, 0.0, 200) }
+                lastVelocity = 0.0
+                lastOmega = 0.0
+                scope.launch { runCatching { repository.stopRemoteMove() } }
             }
-            delay(STEP_MS)
+            delay(POLL_MS)
         }
     }
 

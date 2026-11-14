@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 private val StatusJson = Json {
@@ -78,12 +80,23 @@ suspend fun VacuumSession.emptyInbuiltWaterTank(): V1Response =
 
 suspend fun VacuumSession.appRcStart(): V1Response = sendCommand("app_rc_start")
 
-suspend fun VacuumSession.appRcMove(velocity: Double, omega: Double, durationMs: Int): V1Response =
-    sendCommand("app_rc_move", listOf(JsonObject(mapOf(
-        "velocity" to JsonPrimitive(velocity),
-        "omega" to JsonPrimitive(omega),
-        "duration" to JsonPrimitive(durationMs),
-    ))))
+internal fun rcMoveParams(velocity: Double, omega: Double, durationMs: Int, seqnum: Int?): List<JsonObject> =
+    listOf(JsonObject(buildMap {
+        put("velocity", JsonPrimitive(velocity))
+        put("omega", JsonPrimitive(omega))
+        // The official app counts its moves from 1 and sends the number with each one.
+        if (seqnum != null) put("seqnum", JsonPrimitive(seqnum))
+        put("duration", JsonPrimitive(durationMs))
+    }))
+
+suspend fun VacuumSession.appRcMove(velocity: Double, omega: Double, durationMs: Int, seqnum: Int? = null): V1Response =
+    sendCommand("app_rc_move", rcMoveParams(velocity, omega, durationMs, seqnum))
+
+/** The robot refuses moves with `-10003 action locked` once it has left remote control mode. */
+internal fun isActionLocked(error: JsonObject?): Boolean = error?.get("code")?.jsonPrimitive?.intOrNull == -10003
+
+/** What the official app sends when the stick is released; the remote session stays open. */
+suspend fun VacuumSession.appRcStop(): V1Response = sendCommand("app_rc_stop")
 
 suspend fun VacuumSession.appRcEnd(): V1Response = sendCommand("app_rc_end")
 
