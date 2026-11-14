@@ -11,16 +11,31 @@ class BetaFeaturesTest {
 
     @Test
     fun supported_features_follow_the_feature_bits() {
-        // QX Revo Ultra 2 newFeatureSet: bits 36, 40, 43, 54, 56, 60, 63, 70 and 74 are on, 58 is off; 118 hides the bit-36 switch.
+        // QX Revo Ultra 2 newFeatureSet: bits 36, 40, 43, 54, 56, 60, 63, 70 and 74 are on, 58 and 72 are off; 118 hides the bit-36 switch.
         val set = "0000000000119418CCD57EFDA869B6DDDBFF8F7F7EFEFFFF"
         assertEquals(
             listOf(
-                "cleaning_pattern", "corner_mop_stretch", "dirty_object_detect", "gap_deep_clean", "optimize_battery",
+                "cleaning_pattern", "corner_mop_stretch", "dirty_object_detect", "gap_deep_clean",
                 "pet_supplies_deep_clean", "right_brush_stretch", "water_leak_check",
             ),
             supportedBetaFeatures(set).filter { it.bit != null && it.bit !in setOf(3, 104, 105, 112, 34, 37, 50, 66, 83, 118) }.map { it.id }.sorted(),
         )
         assertEquals(emptyList(), supportedBetaFeatures("0").filter { it.bit != null })
+    }
+
+    @Test
+    fun adjusted_battery_level_is_bit_72_not_74() {
+        val bit72 = "1" + "0".repeat(18)
+        val bit74 = "4" + "0".repeat(18)
+        assertEquals(listOf("optimize_battery"), supportedBetaFeatures(bit72).filter { it.bit != null }.map { it.id })
+        assertEquals(emptyList(), supportedBetaFeatures(bit74).filter { it.bit != null })
+        assertEquals(emptyList(), unlistedAdvertisedFeatures(bit74).map { it.bit })
+    }
+
+    @Test
+    fun dirty_object_detection_and_uncleaned_area_reminder_sit_on_the_floor_page() {
+        val floor = BetaFeatureDefs.filter { it.section == FeatureSection.FLOOR }.map { it.id }
+        assertTrue("dirty_object_detect" in floor && "uncleaned_area_reminder" in floor)
     }
 
     @Test

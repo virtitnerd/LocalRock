@@ -88,7 +88,7 @@ val BetaFeatureDefs = listOf(
         bit = 56,
         getMethod = "get_dirty_object_detect_status",
         setMethod = "set_dirty_object_detect_status",
-        section = FeatureSection.OBSTACLE,
+        section = FeatureSection.FLOOR,
     ),
     BetaFeatureDef(
         id = "avoid_collision",
@@ -292,7 +292,7 @@ val BetaFeatureDefs = listOf(
         bit = 154,
         getMethod = "app_get_robot_setting",
         setMethod = "app_set_robot_setting",
-        section = FeatureSection.ROBOT,
+        section = FeatureSection.FLOOR,
         settingName = "enable_omission_area_clean_status",
     ),
     BetaFeatureDef(
@@ -345,7 +345,7 @@ val BetaFeatureDefs = listOf(
         id = "optimize_battery",
         title = "Smart charging",
         description = "Charges to 80% first, then slowly to 100%, to protect the battery",
-        bit = 74,
+        bit = 72,
         getMethod = "get_optimize_battery_status",
         setMethod = "set_optimize_battery_status",
         section = FeatureSection.ROBOT,
@@ -463,7 +463,9 @@ private val HandledElsewhereBits = setOf(35, 38, 41, 42, 47, 49, 51, 52, 53, 55,
     // App-only in the official app, or for hardware LocalRock has no page for (demo, arm, Wi-Fi setup).
     setOf(76, 86, 96, 99, 101, 110) +
     // 45 is covered by the water slide; 77 (room cap 31) is Manage Maps' maxRooms.
-    setOf(45, 77)
+    setOf(45, 77) +
+    // 74 is only the card bundle's dead OptimizeBattery entry; the a245 sets it and rejects the battery getter.
+    setOf(74)
 
 /** A `newFeatureSet` bit the robot advertises that has no switch here; unnamed bits read "Unknown (n)". */
 data class AdvertisedFeature(val bit: Int, val name: String?)

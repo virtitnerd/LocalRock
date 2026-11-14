@@ -119,12 +119,13 @@ internal fun floorFeatureGroups(features: List<BetaFeatureState>): List<List<Bet
         .map { (_, group) -> group.sortedWith(compareBy({ place(it.value.def).second }, { it.index })).map { it.value } }
 }
 
-/** Where a ROBOT-section feature sits under More Options and Robot Voice. */
-internal enum class RobotRowPlace { LIGHTS, ADJUSTED_BATTERY, VOICE, OTHER }
+/** Where a ROBOT-section feature sits under More Options and Robot Voice; VOICE_SWITCH goes above the volume. */
+internal enum class RobotRowPlace { LIGHTS, ADJUSTED_BATTERY, VOICE_SWITCH, VOICE, OTHER }
 
 internal fun robotRowPlace(def: BetaFeatureDef): RobotRowPlace = when (def.id) {
     "voice_control_led" -> RobotRowPlace.LIGHTS
     "optimize_battery" -> RobotRowPlace.ADJUSTED_BATTERY
+    "voice_assistant" -> RobotRowPlace.VOICE_SWITCH
     "full_duplex" -> RobotRowPlace.VOICE
     else -> RobotRowPlace.OTHER
 }

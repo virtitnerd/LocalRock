@@ -1,10 +1,12 @@
 package com.kodraliu.localrock.ui.vacuum
 
+import com.kodraliu.localrock.shared.vacuum.BetaFeatureDef
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureDefs
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.CleanTimer
 import com.kodraliu.localrock.shared.vacuum.ConsumableStatus
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.TimerDate
 import com.kodraliu.localrock.ui.strings.SettingsStrings
 import kotlinx.datetime.LocalDateTime
@@ -107,6 +109,15 @@ class SettingsLogicTest {
         assertEquals(listOf("full_duplex"), rows.robotRows(RobotRowPlace.VOICE).map { it.def.id })
         assertEquals(listOf("water_leak_check"), rows.robotRows(RobotRowPlace.OTHER).map { it.def.id })
         assertFalse(rows.robotRows(RobotRowPlace.OTHER).any { it.def.id == "avoid_collision" })
+    }
+
+    @Test
+    fun voice_assistant_switch_sits_on_the_voice_page_not_more_options() {
+        // Built here because the voice_assistant definition lives on the advertised-features branch.
+        val def = BetaFeatureDef("voice_assistant", "Voice Assistant", "", 37, "get_voice_service_switch", "set_voice_service_switch", FeatureSection.ROBOT)
+        val rows = listOf(BetaFeatureState(def, value = 1), state("water_leak_check"))
+        assertEquals(listOf("voice_assistant"), rows.robotRows(RobotRowPlace.VOICE_SWITCH).map { it.def.id })
+        assertEquals(listOf("water_leak_check"), rows.robotRows(RobotRowPlace.OTHER).map { it.def.id })
     }
 
     @Test

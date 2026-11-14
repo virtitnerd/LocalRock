@@ -20,7 +20,7 @@ import com.kodraliu.localrock.ui.components.SettingGroup
 import com.kodraliu.localrock.ui.strings.SettingsStrings
 import kotlin.math.roundToInt
 
-/** Robot Voice (Voice Assistant on voice-control robots): the volume slider; LocalRock has no sound pack calls yet. */
+/** Robot Voice (Voice Assistant on voice-control robots): the on/off switch and volume; LocalRock has no sound pack calls yet. */
 @Composable
 fun VacuumRobotVoiceScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     val repository = viewModel.repository
@@ -29,7 +29,9 @@ fun VacuumRobotVoiceScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     val betaFeatures by repository.betaFeatures.collectAsState()
     LoadFeatureRowsOnEntry(viewModel)
     LaunchedOnEntry { runCatching { repository.fetchRobotSettings() } }
+    val voiceSwitch = betaFeatures.robotRows(RobotRowPlace.VOICE_SWITCH)
     val voiceRows = betaFeatures.robotRows(RobotRowPlace.VOICE)
+    val onToggle: (String, Boolean) -> Unit = { id, on -> viewModel.report { it.setBetaFeature(id, on) } }
     var dragging by remember { mutableStateOf<Float?>(null) }
     val shown = dragging ?: robotSettings.volume.toFloat()
 
@@ -37,6 +39,8 @@ fun VacuumRobotVoiceScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         title = if (caps.voiceAssistant) SettingsStrings.VOICE_ASSISTANT else SettingsStrings.ROBOT_VOICE,
         onBack = onBack,
     ) {
+        // The official Voice Assistant page puts its on/off switch above the volume.
+        if (voiceSwitch.isNotEmpty()) item { FeatureCard(voiceSwitch, onToggle) }
         item {
             SettingGroup {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -63,7 +67,7 @@ fun VacuumRobotVoiceScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
                 SettingGroup {
                     voiceRows.forEachIndexed { i, f ->
                         if (i > 0) RowDivider()
-                        FeatureToggleRow(f, { id, on -> viewModel.report { it.setBetaFeature(id, on) } })
+                        FeatureToggleRow(f, onToggle)
                     }
                 }
             }
