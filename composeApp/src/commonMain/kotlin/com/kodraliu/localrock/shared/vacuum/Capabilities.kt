@@ -1,6 +1,9 @@
 package com.kodraliu.localrock.shared.vacuum
 
 import com.kodraliu.localrock.shared.vacuum.camera.CAMERA_FEATURE_BITS
+import com.kodraliu.localrock.shared.vacuum.camera.RemoteViewingFeatures
+import com.kodraliu.localrock.shared.vacuum.camera.remoteViewingFeatures
+import com.kodraliu.localrock.shared.vacuum.camera.remoteViewingSupported
 import com.kodraliu.localrock.shared.vacuum.camera.TWO_KEY_VIDEO_FEATURE_BIT
 
 /** The device page's bottom tabs, in official order. */
@@ -23,6 +26,7 @@ data class Capabilities(
     val camera: Boolean,
     val twoKeyVideo: Boolean,
     val remoteViewing: Boolean,
+    val remoteViewingFeatures: RemoteViewingFeatures,
     val remoteControl: Boolean,
     val pinNGo: Boolean,
     val patrol: Boolean,
@@ -89,7 +93,8 @@ fun buildCapabilities(
         routes = routeGates(model, featureSet, nfs),
         camera = camera,
         twoKeyVideo = bit(TWO_KEY_VIDEO_FEATURE_BIT),
-        remoteViewing = camera, // TODO(B5): official gate RNF 3 + RealTimeVideoPhoto
+        remoteViewing = remoteViewingSupported(featureSet, camera),
+        remoteViewingFeatures = remoteViewingFeatures(featureSet, nfs, remoteViewingSupported(featureSet, camera)),
         remoteControl = true, // TODO(B5): official gate apiLevel >= 10003
         pinNGo = true,
         patrol = patrol,

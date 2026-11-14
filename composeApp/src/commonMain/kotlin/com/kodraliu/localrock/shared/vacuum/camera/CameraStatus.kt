@@ -43,9 +43,22 @@ data class CameraStatus(val raw: Int) {
     /** The value the app writes when the user cancels or the wait runs out. */
     fun cancellingTwoKey(): CameraStatus = withTwoKey(0)
 
+    // Remote Viewing alert level, bits 8-9: 2 Flash, 0 Gentle, 1 Strong (CameraStatusManager).
+    val alertLevel: Int get() = (raw shr ALERT_SHIFT) and 3
+
+    fun withAlertLevel(level: Int) = CameraStatus((raw and (3 shl ALERT_SHIFT).inv()) or ((level and 3) shl ALERT_SHIFT))
+
+    fun withPrivacyAgreed(agreed: Boolean) =
+        CameraStatus(if (agreed) raw or PRIVACY_AGREED_BIT else raw and PRIVACY_AGREED_BIT.inv())
+
+    /** What Deactivate Remote Viewing writes: bit 2 and the two-key state cleared, the rest kept. */
+    fun deactivated(): CameraStatus = CameraStatus(withTwoKey(0).raw and MONITOR_BIT.inv())
+
     private fun withTwoKey(state: Int) = CameraStatus((raw and (3 shl TWO_KEY_SHIFT).inv()) or (state shl TWO_KEY_SHIFT))
 
     companion object {
+        const val ALERT_SHIFT = 8
+        const val MONITOR_BIT = 1 shl 2
         const val TWO_KEY_SHIFT = 12
         const val TWO_KEY_REQUESTED = 1
         const val TWO_KEY_ACTIVE = 2
