@@ -33,7 +33,16 @@ data class BetaFeatureDef(
     val choices: List<FeatureChoice>? = null,
     /** Id of an older option this one replaces on robots that advertise this one. */
     val replaces: String? = null,
+    /** Set when the RPCs differ from the plain get/set pair (see FeatureCodecs.kt). */
+    val codec: FeatureCodec? = null,
+    /** The official app hides this option on robots that advertise this bit. */
+    val hiddenByBit: Int? = null,
+    /** Only on the official app's hidden debug page; listed here so the bit counts as known, never shown. */
+    val debugOnly: Boolean = false,
 )
+
+// The official app shows bit 64's two switches only on a hidden debug page, and turning them off weakens obstacle avoidance.
+const val SHOW_DEBUG_FEATURES = false
 
 val BetaFeatureDefs = listOf(
     BetaFeatureDef(
@@ -89,6 +98,99 @@ val BetaFeatureDefs = listOf(
         getMethod = "get_collision_avoid_status",
         setMethod = "set_collision_avoid_status",
         section = FeatureSection.OBSTACLE,
+        hiddenByBit = 118,
+    ),
+    // Two-gear robots (bit 118) take only 1 and 2 here; the official app never sends 0 to them.
+    BetaFeatureDef(
+        id = "less_collision_mode",
+        title = "Less Collision Mode", // verified
+        description = "Choose the sensitivity of obstacle avoidance based on the surroundings.", // verified
+        bit = 118,
+        getMethod = "get_collision_avoid_status",
+        setMethod = "set_collision_avoid_status",
+        section = FeatureSection.OBSTACLE,
+        choices = listOf(
+            FeatureChoice(1, "High Coverage", "Intelligently covers more areas for deeper cleaning. May cause slight bumps."), // verified
+            FeatureChoice(2, "Less Collision", "Moves more safely to avoid collisions and getting stuck. High cleaning efficiency but may miss some spots."), // verified
+        ),
+    ),
+    BetaFeatureDef(
+        id = "pet_snapshot",
+        title = "Pet Snaps", // verified
+        description = "The robot snaps your pets during cleaning.", // verified
+        bit = 50,
+        getMethod = "get_camera_status",
+        setMethod = "set_camera_status",
+        section = FeatureSection.OBSTACLE,
+        // camera_status bit 1 is pet mode and bit 10 obstacle photos.
+        codec = FeatureCodec.CameraStatusBit(14, listOf(1, 10), "Enable Obstacle Photos and Pet mode first"), // verified
+    ),
+    BetaFeatureDef(
+        id = "identify_room",
+        title = "Smart Room Type Recognition", // verified text, inferred mapping to identify_room_status
+        description = "Recognizes room types on the map", // inferred
+        bit = 66,
+        getMethod = "app_get_robot_setting",
+        setMethod = "app_set_robot_setting",
+        section = FeatureSection.OBSTACLE,
+        settingName = "identify_room_status",
+    ),
+    BetaFeatureDef(
+        id = "common_obs_avoidance",
+        title = "General object recognition", // inferred, the official title is Chinese only
+        description = "Debug switch from the official app's hidden page", // inferred
+        bit = 64,
+        getMethod = "app_get_robot_setting",
+        setMethod = "app_set_robot_setting",
+        section = FeatureSection.OBSTACLE,
+        settingName = "common_obs_avoidance_status",
+        debugOnly = true,
+    ),
+    BetaFeatureDef(
+        id = "object_detect_avoidance",
+        title = "Object-like recognition", // inferred, the official title is Chinese only
+        description = "Debug switch from the official app's hidden page", // inferred
+        bit = 64,
+        getMethod = "app_get_robot_setting",
+        setMethod = "app_set_robot_setting",
+        section = FeatureSection.OBSTACLE,
+        settingName = "object_detect_avoidance_status",
+        debugOnly = true,
+    ),
+    BetaFeatureDef(
+        id = "auto_remop",
+        title = "Automatic Re-Mopping", // verified
+        description = "When a dirty area is detected during mopping, robot will return to the dock for mop washing and double mop after.", // verified
+        bit = 34,
+        getMethod = "get_prop",
+        setMethod = "app_set_dirty_replenish_clean_status",
+        section = FeatureSection.FLOOR,
+        codec = FeatureCodec.StatusSwitchBit(0x10),
+    ),
+    BetaFeatureDef(
+        id = "voice_assistant",
+        title = "Voice Assistant", // verified
+        description = "The robot will respond to your voice commands.", // verified
+        bit = 37,
+        getMethod = "get_voice_service_switch",
+        setMethod = "set_voice_service_switch",
+        section = FeatureSection.ROBOT,
+        codec = FeatureCodec.BareObjectFirst,
+    ),
+    BetaFeatureDef(
+        id = "drying_start_method",
+        title = "Drying Start Method", // verified
+        description = "Adjust the auto-drying frequency after cleaning.", // verified
+        bit = 83,
+        getMethod = "app_get_dryer_setting",
+        setMethod = "app_set_dryer_setting",
+        section = FeatureSection.DOCK,
+        codec = FeatureCodec.DryerStartMethod,
+        choices = listOf(
+            FeatureChoice(0, "Manually Start Drying", "Auto-drying will not start after mop washing. You need to start it manually in the app."), // verified
+            FeatureChoice(1, "Auto", "Auto-drying will be performed after mop washing to avoid dampness and odors."), // label inferred, description verified
+            FeatureChoice(2, "Scheduled Drying", "If the robot detects a mop washing task, it will automatically start the drying process at the preset time."), // verified
+        ),
     ),
     BetaFeatureDef(
         id = "water_leak_check",
@@ -136,6 +238,7 @@ val BetaFeatureDefs = listOf(
         setMethod = "app_set_robot_setting",
         section = FeatureSection.CARPET,
         settingName = "disable_sidebrush_lift_status",
+        hiddenByBit = 119,
     ),
     BetaFeatureDef(
         id = "clean_fluid_delivery",
@@ -185,7 +288,8 @@ val BetaFeatureDefs = listOf(
         id = "uncleaned_area_reminder",
         title = "Uncleaned area reminder",
         description = "Tells you about any uncleaned area after each clean, with a one-tap option to clean it",
-        bit = null,
+        // Official gate: ZoneReplenishCleanSwitch (154), outside Germany (p223 L208437).
+        bit = 154,
         getMethod = "app_get_robot_setting",
         setMethod = "app_set_robot_setting",
         section = FeatureSection.ROBOT,
@@ -250,7 +354,11 @@ val BetaFeatureDefs = listOf(
 
 /** The features this robot's `newFeatureSet` advertises. */
 fun supportedBetaFeatures(newFeatureSet: String?): List<BetaFeatureDef> =
-    BetaFeatureDefs.filter { it.bit == null || newFeatureBit(newFeatureSet, it.bit) }
+    BetaFeatureDefs.filter {
+        (it.bit == null || newFeatureBit(newFeatureSet, it.bit)) &&
+            (it.hiddenByBit == null || !newFeatureBit(newFeatureSet, it.hiddenByBit)) &&
+            (!it.debugOnly || SHOW_DEBUG_FEATURES)
+    }
 
 /** Drops an older option once the option that replaces it has answered, so a failed read keeps the old one. */
 fun List<BetaFeatureState>.withoutReplaced(): List<BetaFeatureState> {
@@ -334,8 +442,13 @@ private val AdvertisedFeatureNames = mapOf(
     118 to "Two gears no collision",
     119 to "Carpet shape type",
     120 to "SR map",
+    122 to "Floor plan map",
     128 to "Roller mop",
+    130 to "Forbid mop only",
+    137 to "No mop, avoid stroll",
+    145 to "Show dirty water tank clean state",
 )
+
 
 /**
  * Bits that have their own place in the app (SmartPlan, water slide, wash, empty and carpet modes), or that
@@ -343,9 +456,16 @@ private val AdvertisedFeatureNames = mapOf(
  * robot has no carpet pressure setting, 38 is the cloud endpoint a robot uses, 52 only changes how the app reads
  * its AI recognition state from the camera, 67 is Matter (its own page), and 62 lowers the battery needed to start building a map from 20% to 15%.
  */
-private val HandledElsewhereBits = setOf(35, 38, 41, 42, 47, 49, 51, 52, 53, 55, 57, 62, 67, 106)
+private val HandledElsewhereBits = setOf(35, 38, 41, 42, 47, 49, 51, 52, 53, 55, 57, 62, 67, 106) +
+    AdvertisedFlagBits +
+    // Camera (32, 33, 48, 73) and dock (107, 109) bits already read elsewhere.
+    setOf(32, 33, 48, 73, 107, 109) +
+    // App-only in the official app, or for hardware LocalRock has no page for (demo, arm, Wi-Fi setup).
+    setOf(76, 86, 96, 99, 101, 110) +
+    // 45 is covered by the water slide; 77 (room cap 31) is Manage Maps' maxRooms.
+    setOf(45, 77)
 
-/** A `newFeatureSet` bit the robot advertises that has no switch here; [name] is null when python-roborock has none. */
+/** A `newFeatureSet` bit the robot advertises that has no switch here; unnamed bits read "Unknown (n)". */
 data class AdvertisedFeature(val bit: Int, val name: String?)
 
 /** What the robot advertises in `newFeatureSet` (bit 32 and up) that has no switch here, in bit order. */
@@ -354,8 +474,10 @@ fun unlistedAdvertisedFeatures(newFeatureSet: String?): List<AdvertisedFeature> 
     val covered = BetaFeatureDefs.mapNotNull { it.bit }.toSet() + HandledElsewhereBits
     return (32 until s.length * 4)
         .filter { it !in covered && newFeatureBit(s, it) }
-        .map { AdvertisedFeature(it, AdvertisedFeatureNames[it]) }
+        .map { AdvertisedFeature(it, advertisedFeatureName(it)) }
 }
+
+internal fun advertisedFeatureName(bit: Int): String = AdvertisedFeatureNames[bit] ?: "Unknown ($bit)"
 
 /** Last read of one feature. [key] is the field name in the reply, null when the reply was a bare number. */
 data class BetaFeatureState(
@@ -370,6 +492,9 @@ data class BetaFeatureState(
 
     /** The label for the current value of a multi-choice setting; a value the app has no name for shows as "Other (n)". */
     val choiceLabel: String? get() = value?.let { v -> def.choices?.let { choiceLabelFor(it, v) } }
+
+    /** Set when the switch cannot be turned on yet; the row shows it disabled with this tip. */
+    val blockedReason: String? get() = if (enabled) null else featureBlockedReason(def, raw)
 }
 
 fun choiceLabelFor(choices: List<FeatureChoice>, value: Int): String =

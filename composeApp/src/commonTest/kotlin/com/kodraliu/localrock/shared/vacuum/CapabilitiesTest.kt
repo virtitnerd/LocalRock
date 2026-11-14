@@ -86,8 +86,8 @@ class CapabilitiesTest {
         assertEquals(supportedBetaFeatures(CURV_NEW_FEATURE_SET), curv.betaFeatures)
         assertEquals(unlistedAdvertisedFeatures(CURV_NEW_FEATURE_SET), curv.unlistedFeatures)
         assertTrue(curv.showsBetaFeatures)
-        assertEquals(listOf(34), pro.unlistedFeatures.map { it.bit })
-        assertTrue(pro.showsBetaFeatures)
+        assertEquals(emptyList(), pro.unlistedFeatures.map { it.bit })
+        assertFalse(pro.showsBetaFeatures)
     }
 
     @Test

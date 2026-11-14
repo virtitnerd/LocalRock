@@ -52,6 +52,7 @@ data class Capabilities(
     val betaFeatures: List<BetaFeatureDef>,
     val unlistedFeatures: List<AdvertisedFeature>,
     val showsBetaFeatures: Boolean,
+    val advertised: AdvertisedCapabilities = AdvertisedCapabilities(),
 )
 
 /** Today's map editor tools; the official gates per tool come with Manage Maps. */
@@ -107,5 +108,6 @@ fun buildCapabilities(
         betaFeatures = betaFeatures,
         unlistedFeatures = unlisted,
         showsBetaFeatures = betaFeatures.any { it.section == FeatureSection.BETA && it.bit != null } || unlisted.isNotEmpty(),
+        advertised = buildAdvertisedCapabilities(nfs),
     )
 }

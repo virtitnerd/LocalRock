@@ -11,14 +11,14 @@ class BetaFeaturesTest {
 
     @Test
     fun supported_features_follow_the_feature_bits() {
-        // QX Revo Ultra 2 newFeatureSet: bits 36, 40, 43, 54, 56, 60, 63, 70 and 74 are on, 58 is off.
+        // QX Revo Ultra 2 newFeatureSet: bits 36, 40, 43, 54, 56, 60, 63, 70 and 74 are on, 58 is off; 118 hides the bit-36 switch.
         val set = "0000000000119418CCD57EFDA869B6DDDBFF8F7F7EFEFFFF"
         assertEquals(
             listOf(
-                "avoid_collision", "cleaning_pattern", "corner_mop_stretch", "dirty_object_detect", "gap_deep_clean", "optimize_battery",
+                "cleaning_pattern", "corner_mop_stretch", "dirty_object_detect", "gap_deep_clean", "optimize_battery",
                 "pet_supplies_deep_clean", "right_brush_stretch", "water_leak_check",
             ),
-            supportedBetaFeatures(set).filter { it.bit != null && it.bit != 3 && it.bit != 104 && it.bit != 105 && it.bit != 112 }.map { it.id }.sorted(),
+            supportedBetaFeatures(set).filter { it.bit != null && it.bit !in setOf(3, 104, 105, 112, 34, 37, 50, 66, 83, 118) }.map { it.id }.sorted(),
         )
         assertEquals(emptyList(), supportedBetaFeatures("0").filter { it.bit != null })
     }
@@ -37,7 +37,7 @@ class BetaFeaturesTest {
         assertEquals(
             listOf(
                 "climbing_arms_high_sill", "dust_collection_switch", "follow_ground_material", "identify_furniture",
-                "identify_ground_material", "uncleaned_area_reminder",
+                "identify_ground_material",
             ),
             supportedBetaFeatures(null).map { it.id }.sorted(),
         )
@@ -138,7 +138,7 @@ class BetaFeaturesTest {
 
     @Test
     fun unnamed_bits_have_no_name_and_missing_sets_are_empty() {
-        assertEquals(listOf(AdvertisedFeature(44, null)), unlistedAdvertisedFeatures("100000000000"))
+        assertEquals(listOf(AdvertisedFeature(44, "Unknown (44)")), unlistedAdvertisedFeatures("100000000000"))
         assertEquals(listOf(AdvertisedFeature(89, "Mechanical arm mode")), unlistedAdvertisedFeatures("2" + "0".repeat(22)))
         assertEquals(emptyList(), unlistedAdvertisedFeatures(null))
         assertEquals(emptyList(), unlistedAdvertisedFeatures(""))
