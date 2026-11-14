@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,7 +76,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kodraliu.localrock.shared.schedule.ScheduleLimit
+import com.kodraliu.localrock.shared.schedule.ScheduleTask
+import com.kodraliu.localrock.shared.schedule.scheduleLimitFor
+import com.kodraliu.localrock.shared.schedule.scheduleTaskTabs
 import com.kodraliu.localrock.shared.vacuum.CleanTimer
+import com.kodraliu.localrock.ui.components.BonusBadge
+import com.kodraliu.localrock.ui.components.BonusKind
+import com.kodraliu.localrock.ui.strings.SecondaryStrings
+import androidx.compose.foundation.layout.navigationBarsPadding
 import com.kodraliu.localrock.shared.vacuum.MopRoute
 import com.kodraliu.localrock.shared.vacuum.TimerKind
 import com.kodraliu.localrock.shared.vacuum.TimerSettings
@@ -104,6 +111,7 @@ fun ScheduleScreen(
     val supportsSmartPlan by viewModel.supportsSmartPlan.collectAsState()
     val supportsWaterSlide by viewModel.supportsWaterSlide.collectAsState()
     val mapRotation by viewModel.mapRotation.collectAsState()
+    val capabilities by viewModel.capabilities.collectAsState()
     val maps by repository.floorMaps.collectAsState()
     val map by repository.parsedMap.collectAsState()
     val currentFlag by repository.currentFloorFlag.collectAsState()
@@ -146,7 +154,7 @@ fun ScheduleScreen(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 runCatching { repository.fetchTimers() }
-                snackbarHostState.showSnackbar(e.message ?: "The schedule could not be saved")
+                snackbarHostState.showSnackbar(e.message ?: SecondaryStrings.SAVE_FAILED)
             } finally { saving = false }
         }
     }
@@ -155,7 +163,7 @@ fun ScheduleScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Schedules") },
+                title = { Text(SecondaryStrings.SCHEDULES) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
@@ -164,9 +172,19 @@ fun ScheduleScreen(
                 },
             )
         },
-        floatingActionButton = {
-            if (!saving && !loading && loadError == null) FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, "Add schedule")
+        bottomBar = {
+            if (!saving && !loading && loadError == null) Button(
+                onClick = {
+                    // Cruise schedules cannot be created yet, so only the overall cap applies here.
+                    if (scheduleLimitFor(timers.size, 0, addingCruise = false) == ScheduleLimit.SCHEDULES) {
+                        scope.launch { snackbarHostState.showSnackbar(SecondaryStrings.MAX_SCHEDULES) }
+                    } else showAddDialog = true
+                },
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text(SecondaryStrings.ADD_SCHEDULE)
             }
         },
     ) { padding ->
@@ -179,9 +197,9 @@ fun ScheduleScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Schedule, null, Modifier.size(48.dp), MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("No schedules yet", style = MaterialTheme.typography.titleMedium)
+                    Text(SecondaryStrings.NO_SCHEDULES, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Tap + to schedule a recurring clean",
+                        SecondaryStrings.NO_SCHEDULES_DESC,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -193,7 +211,7 @@ fun ScheduleScreen(
                 if (missing.isNotEmpty()) item(key = "missing-timers") {
                     Card(shape = RoundedCornerShape(20.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(missingTimersText(missing.size), style = MaterialTheme.typography.bodyMedium)
+                            Text(SecondaryStrings.missingTimers(missing.size), style = MaterialTheme.typography.bodyMedium)
                             Button(enabled = !saving, onClick = {
                                 val lost = missing
                                 saveTimer {
@@ -205,7 +223,7 @@ fun ScheduleScreen(
                                     refresh++
                                     if (failures.isNotEmpty()) error(failures.distinct().joinToString(" "))
                                 }
-                            }) { Text("Restore on robot") }
+                            }) { Text(SecondaryStrings.RESTORE_ON_ROBOT) }
                         }
                     }
                 }
@@ -232,6 +250,7 @@ fun ScheduleScreen(
             supportsWaterSlide = supportsWaterSlide,
             mapRotation = mapRotation,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
+            patrolRobot = capabilities.patrol,
             onSave = { hour, minute, weekdays, settings, once, _, _, _ ->
                 showAddDialog = false
                 saveTimer { repository.createTimer(hour, minute, weekdays, settings, once) }
@@ -248,6 +267,7 @@ fun ScheduleScreen(
             supportsWaterSlide = supportsWaterSlide,
             mapRotation = mapRotation,
             rooms = rooms, map = map, mapName = mapName, currentFlag = currentFlag,
+            patrolRobot = capabilities.patrol,
             onSave = { hour, minute, weekdays, settings, once, settingsChanged, timingChanged, enabled ->
                 editing = null
                 saveTimer { repository.updateTimer(timer, hour, minute, weekdays, settings, once, settingsChanged, timingChanged, enabled) }
@@ -311,6 +331,7 @@ private fun TimerDialog(
     supportsWaterSlide: Boolean,
     mapRotation: Int,
     rooms: List<ParsedMapRoom>, map: ParsedMap?, mapName: String, currentFlag: Int,
+    patrolRobot: Boolean,
     onSave: (hour: Int, minute: Int, weekdays: Set<Int>, settings: TimerSettings, once: Boolean, settingsChanged: Boolean, timingChanged: Boolean, enabled: Boolean) -> Unit,
     readNativeState: (suspend () -> String)? = null,
     restoreNative: (suspend () -> String)? = null,
@@ -325,6 +346,9 @@ private fun TimerDialog(
     var nativeState by remember { mutableStateOf("Not checked") }
     val detailScope = rememberCoroutineScope()
     var hour by remember { mutableIntStateOf(initial?.hour ?: 8) }
+    // A new schedule starts "Not Set" like the official editor and cannot be saved until a time is picked.
+    var timeSet by remember { mutableStateOf(initial != null) }
+    var confirmDelete by remember { mutableStateOf(false) }
     var minute by remember { mutableIntStateOf(initial?.minute ?: 0) }
     // Once is the official app's default for a new schedule.
     var repeatChoice by remember { mutableStateOf(initial?.let { repeatChoiceOf(it) } ?: RepeatChoice.ONCE) }
@@ -355,6 +379,10 @@ private fun TimerDialog(
     var localError by remember { mutableStateOf<String?>(null) }
 
     fun save() {
+        if (!timeSet) {
+            localError = SecondaryStrings.NO_TIME_SET
+            return
+        }
         val selectedSettings = timerSettingsFor(
             kind = kind,
             fanPower = fanPower,
@@ -389,31 +417,52 @@ private fun TimerDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(topBar = {
-            TopAppBar(title = { Text(if (initial == null) "New schedule" else "Scheduling") }, navigationIcon = {
+            TopAppBar(title = { Text(SecondaryStrings.SCHEDULING) }, navigationIcon = {
                 IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cancel editing") }
             }, actions = {
-                if (onDelete != null) IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete schedule") }
+                if (onDelete != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, "Delete schedule") }
                 IconButton(enabled = repeatChoice != RepeatChoice.CUSTOM || weekdays.isNotEmpty(), onClick = { save() }) { Icon(Icons.Default.Check, "Save schedule") }
             })
         }) { padding ->
             Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Card(shape = RoundedCornerShape(20.dp)) {
-                    ScheduleRow("Start", formatClock(hour, minute, rememberUse24HourClock())) { sheet = "time" }
+                    ScheduleRow(SecondaryStrings.START, if (timeSet) formatClock(hour, minute, rememberUse24HourClock()) else SecondaryStrings.NOT_SET) { sheet = "time" }
                     HorizontalDivider()
-                    ScheduleRow("Repeat", if (repeatChoice == RepeatChoice.ONCE && initial?.date != null && hour == initial.hour && minute == initial.minute) formatRepeat(initial) else repeatChoice.label) { sheet = "repeat" }
+                    ScheduleRow(SecondaryStrings.REPEAT, if (repeatChoice == RepeatChoice.ONCE && initial?.date != null && hour == initial.hour && minute == initial.minute) formatRepeat(initial) else repeatChoice.label) { sheet = "repeat" }
                 }
-                Text("Task", style = MaterialTheme.typography.labelLarge)
+                Text(SecondaryStrings.TASK, style = MaterialTheme.typography.labelLarge)
                 Card(shape = RoundedCornerShape(20.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val tabs = scheduleTaskTabs(patrolRobot)
                         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                            listOf("Full", "Rooms").forEachIndexed { index, label ->
-                                SegmentedButton(selected = wholeHome == (index == 0), shape = SegmentedButtonDefaults.itemShape(index, 2), onClick = {
-                                    if (index == 0) { wholeHome = true; roomsChanged = true } else sheet = "rooms"
-                                }) { Text(label) }
+                            tabs.forEachIndexed { index, tab ->
+                                SegmentedButton(
+                                    selected = when (tab.task) {
+                                        ScheduleTask.FULL -> wholeHome
+                                        ScheduleTask.ROOMS -> !wholeHome
+                                        else -> false
+                                    },
+                                    enabled = tab.enabled,
+                                    shape = SegmentedButtonDefaults.itemShape(index, tabs.size),
+                                    onClick = {
+                                        when (tab.task) {
+                                            ScheduleTask.FULL -> { wholeHome = true; roomsChanged = true }
+                                            ScheduleTask.ROOMS -> sheet = "rooms"
+                                            else -> Unit
+                                        }
+                                    },
+                                ) { Text(tab.task.label(), maxLines = 1) }
                             }
                         }
-                        ScheduleRow("Cleaning Mode", if (initial != null && !settingsChanged) start.kind.label() else kind.label()) { sheet = "mode" }
+                        if (tabs.any { !it.enabled }) {
+                            Text(
+                                SecondaryStrings.CRUISE_SCHEDULE_UNSUPPORTED,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        ScheduleRow(SecondaryStrings.CLEANING_MODE, if (initial != null && !settingsChanged) start.kind.label() else kind.label()) { sheet = "mode" }
                         ScheduleRow("Map", mapName) { sheet = "rooms" }
                         if (map != null) VacuumMapImage(map, if (wholeHome) emptyList() else selected,
                             onRoomTap = { sheet = "rooms" }, onObstacleTap = {}, is3D = false, yawDegrees = mapRotation.toFloat(), onYawBy = {}, tiltDegrees = 0f, onTiltBy = {}, modifier = Modifier.fillMaxWidth().height(220.dp))
@@ -428,7 +477,10 @@ private fun TimerDialog(
                     }
                 }
                 if (initial?.serverJob != null) {
-                    TextButton(onClick = { moreDetails = !moreDetails }) { Text("More details") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { moreDetails = !moreDetails }) { Text("More details") }
+                        BonusBadge(BonusKind.LocalRock)
+                    }
                     if (moreDetails) {
                         Text("Enabled updates the server job and verifies its linked native timer when present.", style = MaterialTheme.typography.bodySmall)
                         Text("Job: ${initial.id}", style = MaterialTheme.typography.bodySmall)
@@ -446,28 +498,36 @@ private fun TimerDialog(
                         }) { Text("Check native timer") }
                         if (nativeState == "Missing" && restoreNative != null) TextButton(onClick = {
                             detailScope.launch {
-                                nativeState = "Restoring…"
+                                nativeState = SecondaryStrings.RESTORING
                                 try { nativeState = restoreNative() }
                                 catch (e: CancellationException) { currentCoroutineContext().ensureActive(); nativeState = "Unknown — request timed out" }
                                 catch (e: Exception) { nativeState = "Missing — ${e.message}" }
                             }
-                        }) { Text("Restore timer on robot") }
+                        }) { Text(SecondaryStrings.RESTORE_NATIVE_TIMER) }
                     }
                 }
 
             }
         }
+        if (confirmDelete && onDelete != null) {
+            AlertDialog(
+                onDismissRequest = { confirmDelete = false },
+                title = { Text(SecondaryStrings.DELETE_SCHEDULE) },
+                confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text(SecondaryStrings.DELETE) } },
+                dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(SecondaryStrings.CANCEL) } },
+            )
+        }
         when (sheet) {
             "time" -> {
                 val time = rememberTimePickerState(hour, minute, is24Hour = rememberUse24HourClock())
-                AlertDialog(onDismissRequest = { sheet = null }, title = { Text("Start time") }, text = { TimeInput(time) },
-                    confirmButton = { TextButton(onClick = { hour = time.hour; minute = time.minute; sheet = null }) { Text("Done") } },
+                AlertDialog(onDismissRequest = { sheet = null }, title = { Text(SecondaryStrings.START) }, text = { TimeInput(time) },
+                    confirmButton = { TextButton(onClick = { hour = time.hour; minute = time.minute; timeSet = true; localError = null; sheet = null }) { Text("Done") } },
                     dismissButton = { TextButton(onClick = { sheet = null }) { Text("Cancel") } })
             }
             "repeat" -> ModalBottomSheet(onDismissRequest = { sheet = null }) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChipRow(
-                        label = "Repeat",
+                        label = SecondaryStrings.REPEAT,
                         options = RepeatChoice.entries.map { it to it.label },
                         selected = repeatChoice,
                         onSelect = { repeatChoice = it },
@@ -656,11 +716,18 @@ private val WEEKENDS = setOf(0, 6)
 
 /** The official app's Repeat choices; Custom shows the day buttons. */
 private enum class RepeatChoice(val label: String) {
-    ONCE("Once"),
-    EVERY_DAY("Every day"),
-    WEEKDAYS("Weekdays"),
-    WEEKENDS("Weekends"),
-    CUSTOM("Custom"),
+    ONCE(SecondaryStrings.ONCE),
+    EVERY_DAY(SecondaryStrings.EVERYDAY),
+    WEEKDAYS(SecondaryStrings.WEEKDAYS),
+    WEEKENDS(SecondaryStrings.WEEKENDS),
+    CUSTOM(SecondaryStrings.CUSTOM),
+}
+
+private fun ScheduleTask.label(): String = when (this) {
+    ScheduleTask.FULL -> SecondaryStrings.TASK_FULL
+    ScheduleTask.ROOMS -> SecondaryStrings.TASK_ROOMS
+    ScheduleTask.ROUTINE -> SecondaryStrings.TASK_ROUTINE
+    ScheduleTask.CRUISE -> SecondaryStrings.TASK_CRUISE
 }
 
 private fun repeatChoiceOf(timer: CleanTimer): RepeatChoice = when {
@@ -684,7 +751,3 @@ private fun formatRepeat(timer: CleanTimer): String {
         else -> choice.label
     }
 }
-
-private fun missingTimersText(count: Int) =
-    if (count == 1) "1 schedule is missing from the robot, which can happen after re-pairing. Toggling or editing it fails until it is restored."
-    else "$count schedules are missing from the robot, which can happen after re-pairing. Toggling or editing them fails until they are restored."

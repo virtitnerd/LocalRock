@@ -66,6 +66,15 @@ object SecondaryStrings {
     const val CLEANING_MODE = "Cleaning Mode" // verified
     const val CRUISE_POINT_TIP = "Tap on map to set the cruise point" // verified
     const val NO_CRUISE_POINT = "No cruising point set." // verified
+    const val NO_TIME_SET = "No schedule set" // verified
+    const val SAVE_FAILED = "Could not save. Check network connection" // verified
+    const val DELETE = "Delete" // verified
+    const val RESTORE_NATIVE_TIMER = "Restore timer on robot" // inferred
+    const val RESTORING = "Restoring…" // inferred
+    const val RESTORE_ON_ROBOT = "Restore on robot" // inferred
+    fun missingTimers(count: Int) = // inferred
+        if (count == 1) "1 schedule is missing from the robot, which can happen after re-pairing. Toggling or editing it fails until it is restored."
+        else "$count schedules are missing from the robot, which can happen after re-pairing. Toggling or editing them fails until they are restored."
     const val CRUISE_SCHEDULE_UNSUPPORTED = "Scheduled cruise needs server support that LocalRock does not have yet." // inferred
 
     // Routines.
