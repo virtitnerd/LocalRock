@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.FIRMWARE_MIN_BATTERY
 import com.kodraliu.localrock.shared.vacuum.FirmwareProgress
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.BonusBadge
+import com.kodraliu.localrock.ui.components.BonusKind
+import com.kodraliu.localrock.ui.strings.SecondaryStrings
 
 /** The text shown for each stage of an install. */
 internal fun firmwareProgressText(progress: FirmwareProgress): String = when (progress) {
@@ -49,6 +52,9 @@ internal fun firmwareProgressText(progress: FirmwareProgress): String = when (pr
     is FirmwareProgress.Failed -> progress.reason
 }
 
+/** The official prompt's second button: "Exit" when the update is forced, else "Later". */
+internal fun firmwareDismissLabel(force: Boolean): String = if (force) SecondaryStrings.EXIT else SecondaryStrings.LATER
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FirmwareUpdateScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
@@ -56,8 +62,13 @@ internal fun FirmwareUpdateScreen(viewModel: VacuumViewModel, onBack: () -> Unit
     val progress by viewModel.firmwareProgress.collectAsState()
     val robotStatus by viewModel.status.collectAsState()
     var confirm by remember { mutableStateOf(false) }
+    // Like the official app, a found update opens the "New Version Available" prompt once per visit.
+    var prompted by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (state is FirmwareUpdateState.Idle) viewModel.checkFirmwareUpdate() }
+    LaunchedEffect(state) {
+        if (state is FirmwareUpdateState.Available && !prompted && !progress.running) { prompted = true; confirm = true }
+    }
 
     // Recomputed whenever the robot's status changes, since it decides if the button works.
     val blocker = remember(robotStatus) { viewModel.firmwareBlocker() }
@@ -65,7 +76,7 @@ internal fun FirmwareUpdateScreen(viewModel: VacuumViewModel, onBack: () -> Unit
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Firmware update") },
+                title = { Text(SecondaryStrings.FIRMWARE_UPDATES) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
@@ -83,21 +94,29 @@ internal fun FirmwareUpdateScreen(viewModel: VacuumViewModel, onBack: () -> Unit
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                        Text("Checking for updates…")
+                        Text(SecondaryStrings.CHECKING)
                     }
-                    is FirmwareUpdateState.UpToDate -> VersionCard("Up to date", s.current, null, null)
-                    is FirmwareUpdateState.Available -> VersionCard(
-                        if (s.force) "Update required" else "Update available", s.current, s.latest, s.notes,
-                    )
+                    is FirmwareUpdateState.UpToDate -> VersionCard(SecondaryStrings.UP_TO_DATE, s.current, null, null)
+                    is FirmwareUpdateState.Available -> VersionCard(SecondaryStrings.NEW_VERSION, s.current, s.latest, s.notes)
                     is FirmwareUpdateState.Unavailable -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("The update check is not available.", style = MaterialTheme.typography.titleMedium)
                         Text(s.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     }
                 }
 
-                if (progress != FirmwareProgress.Idle) ProgressCard(progress)
-
                 val available = state is FirmwareUpdateState.Available
+                if (available && !progress.running) {
+                    Button(onClick = { confirm = true }, enabled = blocker == null, modifier = Modifier.fillMaxWidth()) {
+                        Text(SecondaryStrings.UPDATE_NOW)
+                    }
+                }
+
+                // LocalRock extra: the install runs through your server, with its own progress and re-check.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(SecondaryStrings.LOCAL_INSTALL, style = MaterialTheme.typography.titleSmall)
+                    BonusBadge(BonusKind.LocalRock)
+                }
+                if (progress != FirmwareProgress.Idle) ProgressCard(progress)
                 if (available && !progress.running) {
                     Text(
                         "The update is downloaded from your server and installed by the robot. It needs the robot on its dock " +
@@ -108,31 +127,39 @@ internal fun FirmwareUpdateScreen(viewModel: VacuumViewModel, onBack: () -> Unit
                     if (blocker != null) {
                         Text(blocker, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     }
-                    Button(onClick = { confirm = true }, enabled = blocker == null, modifier = Modifier.fillMaxWidth()) {
-                        Text("Update now")
-                    }
                 }
                 if (state !is FirmwareUpdateState.Checking && !progress.running) {
                     OutlinedButton(onClick = { viewModel.checkFirmwareUpdate() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Check again")
+                        Text(SecondaryStrings.CHECK_AGAIN)
                     }
                 }
             }
         }
     }
 
-    if (confirm) {
+    val offer = state as? FirmwareUpdateState.Available
+    if (confirm && offer != null) {
         AlertDialog(
-            onDismissRequest = { confirm = false },
-            title = { Text("Update the firmware?") },
+            onDismissRequest = { if (!offer.force) confirm = false },
+            title = { Text(SecondaryStrings.NEW_VERSION) },
             text = {
-                Text(
-                    "The robot will download the update, install it and restart. It is unavailable for a few minutes. " +
-                        "Keep it on its dock and do not turn it off.",
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${SecondaryStrings.CURRENT_VERSION}: ${offer.current ?: "-"}")
+                    Text("${SecondaryStrings.LATEST_VERSION}: ${offer.latest ?: "-"}")
+                    offer.notes?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (blocker != null) Text(blocker, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
             },
-            confirmButton = { TextButton(onClick = { confirm = false; viewModel.startFirmwareUpdate() }) { Text("Update") } },
-            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(enabled = blocker == null, onClick = { confirm = false; viewModel.startFirmwareUpdate() }) {
+                    Text(SecondaryStrings.UPDATE_NOW)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirm = false; if (offer.force) onBack() }) { Text(firmwareDismissLabel(offer.force)) }
+            },
         )
     }
 }
@@ -142,8 +169,8 @@ private fun VersionCard(title: String, current: String?, latest: String?, notes:
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            Text("Installed: ${current ?: "unknown"}", style = MaterialTheme.typography.bodyMedium)
-            latest?.let { Text("Available: $it", style = MaterialTheme.typography.bodyMedium) }
+            Text("${SecondaryStrings.CURRENT_VERSION}: ${current ?: "-"}", style = MaterialTheme.typography.bodyMedium)
+            latest?.let { Text("${SecondaryStrings.LATEST_VERSION}: $it", style = MaterialTheme.typography.bodyMedium) }
             notes?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

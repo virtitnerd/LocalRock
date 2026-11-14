@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.ui.AppColors
+import com.kodraliu.localrock.ui.strings.SecondaryStrings
 
 @Composable
 internal fun FirmwareUpdateRow(state: FirmwareUpdateState, onCheck: () -> Unit) {
@@ -47,7 +48,7 @@ internal fun FirmwareUpdateRow(state: FirmwareUpdateState, onCheck: () -> Unit) 
             tint = AppColors.Good
         }
         is FirmwareUpdateState.Available -> {
-            value = if (state.force) "Update required" else "Update available"
+            value = SecondaryStrings.NEW_VERSION
             supporting = buildString {
                 append(state.current ?: "?"); append("  →  "); append(state.latest ?: "?")
                 state.notes?.takeIf { it.isNotBlank() }?.let { append("\n"); append(it) }
@@ -70,7 +71,7 @@ internal fun FirmwareUpdateRow(state: FirmwareUpdateState, onCheck: () -> Unit) 
                 Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.SystemUpdate, null, Modifier.size(22.dp), tint) }
             }
             Column(Modifier.weight(1f)) {
-                Text("Firmware updates", style = MaterialTheme.typography.bodyLarge)
+                Text(SecondaryStrings.FIRMWARE_UPDATES, style = MaterialTheme.typography.bodyLarge)
                 Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (supporting != null) {
                     Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
