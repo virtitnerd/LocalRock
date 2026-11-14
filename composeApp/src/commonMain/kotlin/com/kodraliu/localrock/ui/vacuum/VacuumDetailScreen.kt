@@ -130,10 +130,13 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -144,6 +147,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.PI
@@ -741,12 +745,9 @@ private fun MapHeroSection(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val heroBackground = if (scheme.surface.luminance() < 0.5f) {
-        scheme.surfaceVariant
-    } else {
-        // Near-white, so the tinted rooms advance instead of sinking into a grey slab.
-        scheme.surfaceContainerLowest
-    }
+    // Black in both themes, as in the Roborock app: the bright room colours need it, and the gaps in
+    // the plan then read as unscanned instead of grey floor.
+    val heroBackground = Color(0xFF0B0F10)
     Box(
         modifier = modifier
             .clipToBounds()
@@ -927,6 +928,8 @@ private fun DrawScope.drawMapLayer(image: ImageBitmap, view: MapView, height: Fl
     }
 }
 
+private const val MIN_LABEL_WIDTH_PX = 60
+
 @Composable
 private fun VacuumMapImage(
     map: ParsedMap,
@@ -946,6 +949,7 @@ private fun VacuumMapImage(
     // in the layers' own pixels (wall height, label lift) is in cells times this.
     val scale = remember(map) { supersampleFor(map) }
     val (bitmap, overlayBitmap) = rememberMapLayers(map, scale)
+    val darkMap = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val walls = rememberWallBitmaps(map, scale, enabled = is3D)
     val selectionBitmap = rememberSelectionBitmap(map, selectedRoomIds, scale)
     val wallHeight = WALL_HEIGHT_CELLS * scale
@@ -956,9 +960,8 @@ private fun VacuumMapImage(
     val labelStyle = TextStyle(
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = Color(0xFF0E1A26),
     )
-    val bgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
     val selectedBgColor = MaterialTheme.colorScheme.primary
     // In dark mode `primary` is a bright cyan, so white-on-primary would be unreadable.
     val selectedLabelStyle = labelStyle.copy(color = MaterialTheme.colorScheme.onPrimary)
@@ -1062,6 +1065,7 @@ private fun VacuumMapImage(
             // choice reads at a glance without hiding where the robot has been.
             selectionBitmap?.let { drawMapLayer(it, view, 0f, quality) }
             drawMapLayer(overlayBitmap, view, 0f, quality)
+            drawRouteAndMarkers(map, view, scale, darkMap)
             if (is3D && walls != null) {
                 val (wallSide, wallTop) = walls
                 // Walls rise by stacking the wall layer at climbing heights, then capping it with the
@@ -1092,23 +1096,68 @@ private fun VacuumMapImage(
                 val order = selectedRoomIds.indexOf(room.id)
                 val selected = order >= 0
                 val text = if (selected) "${order + 1} · ${room.name}" else room.name
-                val style = if (selected) selectedLabelStyle else labelStyle
-                val measured = textMeasurer.measure(text, style)
+                // Dark names sit well on the coloured floor of the flat map; the 3D walls are black, so
+                // there the names are white with a thin edge.
+                val style = when {
+                    selected -> selectedLabelStyle
+                    is3D -> labelStyle.copy(color = Color.White, shadow = Shadow(Color(0xE6000000), Offset(0f, 1f), 3f))
+                    else -> labelStyle
+                }
+                // A name is shortened to fit inside its room, as the Roborock app does, so it never runs out
+                // over the black between rooms.
+                val roomWidthPx = (room.labelSpanCells ?: 0) * view.k * scale
+                val measured = if (roomWidthPx > 0f) {
+                    textMeasurer.measure(
+                        text, style,
+                        overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1,
+                        constraints = Constraints(maxWidth = roomWidthPx.toInt().coerceAtLeast(MIN_LABEL_WIDTH_PX)),
+                    )
+                } else {
+                    textMeasurer.measure(text, style)
+                }
                 val tw = measured.size.width.toFloat()
                 val th = measured.size.height.toFloat()
                 val padX = 6.dp.toPx()
                 val padY = 3.dp.toPx()
-                drawRoundRect(
-                    color = if (selected) selectedBgColor else bgColor,
-                    topLeft = Offset(cx - tw / 2 - padX, cy - th / 2 - padY),
-                    size = Size(tw + padX * 2, th + padY * 2),
-                    cornerRadius = CornerRadius(6.dp.toPx()),
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = text,
-                    style = style,
-                    topLeft = Offset(cx - tw / 2, cy - th / 2),
+                if (selected) {
+                    drawRoundRect(
+                        color = selectedBgColor,
+                        topLeft = Offset(cx - tw / 2 - padX, cy - th / 2 - padY),
+                        size = Size(tw + padX * 2, th + padY * 2),
+                        cornerRadius = CornerRadius(6.dp.toPx()),
+                    )
+                }
+                val topLeft = Offset(cx - tw / 2, cy - th / 2)
+                if (is3D && !selected) {
+                    val outline = textMeasurer.measure(
+                        text,
+                        style.copy(
+                            color = Color(0xE6000000),
+                            shadow = null,
+                            drawStyle = Stroke(width = 0.8.dp.toPx(), join = StrokeJoin.Round),
+                        ),
+                        overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1,
+                        constraints = Constraints(maxWidth = measured.size.width.coerceAtLeast(1)),
+                    )
+                    drawText(outline, topLeft = topLeft)
+                }
+                // Drawn from the measured layout, so a name near the screen edge is not re-wrapped to fit.
+                drawText(measured, topLeft = topLeft)
+            }
+        }
+
+        // Zoom is shown relative to the framed view, which is the resting state.
+        if (mapViewport.zoom > 1.05f) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                color = Color.Black.copy(alpha = 0.6f),
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(
+                    "${(mapViewport.zoom * 100).toInt()}%",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
                 )
             }
         }

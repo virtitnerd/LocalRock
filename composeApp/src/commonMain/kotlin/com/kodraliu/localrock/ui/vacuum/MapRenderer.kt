@@ -5,20 +5,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.luminance
 import com.kodraliu.localrock.shared.vacuum.map.MapZone
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapPoint
 import com.kodraliu.localrock.shared.vacuum.map.VirtualWall
 import com.kodraliu.localrock.shared.vacuum.map.roomIdAtCell
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 // Zone overlays are translucent, so one pair reads over both the light and dark palettes.
 private val NO_GO_FILL = Color(0x33f44336)    // translucent red
@@ -49,31 +57,30 @@ private class MapPalette(
 
 // Light is NOT the dark palette inverted: the rooms have to sit *above* their container, so the
 // hero behind them is near-white and these tints carry enough weight to advance against it.
+// Blue, salmon, teal and yellow in the order the Roborock app numbers them, then grey for a room it has no colour for.
+private val OfficialRoomColors = listOf(
+    Color(0xFF6EA8EB), Color(0xFFDB7F66), Color(0xFF26CFC8), Color(0xFFE8BA5C), Color(0xFFB8B8B8),
+)
+
 private val LightPalette = MapPalette(
     // A softer slate than near-black: at 1px over pastel, near-black reads as harsh scratchy noise.
     wall = Color(0xFF3A4A52),
     floor = Color(0xFFE9EFEE),
-    rooms = listOf(
-        Color(0xFFBFE0DC), Color(0xFFC8DCEF), Color(0xFFCBE3C4), Color(0xFFEBDCC4),
-        Color(0xFFD8D2E8), Color(0xFFC9E2E4), Color(0xFFEBD5CC), Color(0xFFD3E0D0),
-    ),
+    rooms = OfficialRoomColors,
     // Deep enough to read as ink rather than neon against the pastels.
-    path = Color(0xFFC75B00),
-    charger = Color(0xFF1565C0),
-    robot = Color(0xFF00595A),
+    path = Color(0x99FFFFFF),
+    charger = Color(0xFF1FB36A),
+    robot = Color(0xFF1FB36A),
     markerRing = Color(0xFFFFFFFF),
 )
 
 private val DarkPalette = MapPalette(
     wall = Color(0xFF070B0C),
     floor = Color(0xFF17201F),
-    rooms = listOf(
-        Color(0xFF1E3A38), Color(0xFF1F3140), Color(0xFF24382A), Color(0xFF3A3328),
-        Color(0xFF2E2A3B), Color(0xFF1C3639), Color(0xFF38292A), Color(0xFF26332A),
-    ),
-    path = Color(0xFFFFD54F),
-    charger = Color(0xFF64B5F6),
-    robot = Color(0xFF4CDADA),
+    rooms = OfficialRoomColors,
+    path = Color(0x99FFFFFF),
+    charger = Color(0xFF2ED47E),
+    robot = Color(0xFF2ED47E),
     markerRing = Color(0xFF0B1112),
 )
 
@@ -105,10 +112,11 @@ internal fun supersampleFor(map: ParsedMap): Int = (2400 / maxOf(map.width, map.
 fun rememberMapLayers(map: ParsedMap, scale: Int): Pair<ImageBitmap, ImageBitmap> {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val palette = if (dark) DarkPalette else LightPalette
-    // A live update replaces the map object every few seconds. The floor only depends on the grid and
-    // rooms, so it is not redrawn for a robot that has merely moved; the overlay carries the route.
+    // A live update replaces the map object every few seconds. The floor and the zones only depend on the
+    // grid, rooms and restrictions, so neither is redrawn for a robot that has merely moved; the route and
+    // the markers are drawn as vectors on top.
     val floor = remember(map.floorKey(), dark, scale) { renderLayer(map, palette, scale, overlay = false) }
-    val overlay = remember(map, dark, scale) { renderLayer(map, palette, scale, overlay = true) }
+    val overlay = remember(map.restrictionsKey(), dark, scale) { renderLayer(map, palette, scale, overlay = true) }
     return floor to overlay
 }
 
@@ -118,7 +126,13 @@ fun rememberMapLayers(map: ParsedMap, scale: Int): Pair<ImageBitmap, ImageBitmap
  */
 internal fun ParsedMap.floorKey(): List<Any?> = listOf(
     width, height, resolution, pixelOffsetLeft, pixelOffsetTop, format,
-    grid.contentHashCode(), originalGrid?.contentHashCode(), rooms, segmentMaterials, segmentMaterialDirections,
+    grid.contentHashCode(), originalGrid?.contentHashCode(), carpetMask?.contentHashCode(), rooms,
+    segmentMaterials, segmentMaterialDirections,
+)
+
+/** What the zones and virtual walls are drawn from. */
+internal fun ParsedMap.restrictionsKey(): List<Any?> = listOf(
+    width, height, pixelOffsetLeft, pixelOffsetTop, carpetAreas, thresholds, noMopZones, noGoZones, virtualWalls,
 )
 
 /**
@@ -196,6 +210,7 @@ private fun renderSelection(map: ParsedMap, selected: Set<Int>, palette: MapPale
     val canvas = Canvas(bitmap)
     canvas.scale(scale.toFloat(), scale.toFloat())
     val vivid = palette.rooms.map { vividOf(it) }
+    val slots = roomColorSlots(map, palette.rooms.size)
     val paint = Paint()
     for (y in 0 until map.height) {
         val rowOff = y * map.width
@@ -205,7 +220,7 @@ private fun renderSelection(map: ParsedMap, selected: Set<Int>, palette: MapPale
             val room = map.roomIdAtCell(rowOff + x) ?: continue
             if (room !in selected) continue
             // Indexed the way drawFloor tints a room, so a room lights up in its own hue.
-            paint.color = vivid[room % vivid.size]
+            paint.color = vivid[slots[room] ?: 0]
             canvas.drawRect(Rect(x.toFloat(), drawY, x + 1f, drawY + 1f), paint)
         }
     }
@@ -286,18 +301,24 @@ private fun renderLayer(map: ParsedMap, palette: MapPalette, scale: Int, overlay
     val bitmap = ImageBitmap(map.width * scale, map.height * scale)
     val canvas = Canvas(bitmap)
     canvas.scale(scale.toFloat(), scale.toFloat())
-    if (overlay) drawOverlays(canvas, map, palette, drawRestrictions = true) else drawFloor(canvas, map, palette)
+    if (overlay) drawOverlays(canvas, map, palette, drawRestrictions = true, includeRoute = false) else drawFloor(canvas, map, palette)
     return bitmap
 }
 
 private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette) {
+    // The cells are masked by a rounded outline of the plan, so its edges are smooth rather than
+    // stair steps. The mask is a path drawn over them, which anti-aliases where a clip would not.
+    canvas.saveLayer(Rect(0f, 0f, map.width.toFloat(), map.height.toFloat()), Paint())
     val wallPaint = Paint().apply { color = palette.wall }
     val floorPaint = Paint().apply { color = palette.floor }
     val roomPaint = Paint()
+    val patterns = HashMap<Int, FloorPattern>()
+    val slots = roomColorSlots(map, palette.rooms.size)
     val w = map.width
     val h = map.height
     val grid = map.grid
     val raw = map.originalGrid
+    val carpet = map.carpetMask
     for (y in 0 until h) {
         val rowOff = y * w
         // Flip Y so the map reads with origin at the top (matches the Roborock app).
@@ -309,7 +330,12 @@ private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette) {
                 128 -> {
                     if (raw != null) {
                         val roomId = (raw[rowOff + x].toInt() ushr 3) and 0x1f
-                        roomPaint.color = palette.rooms[roomId % palette.rooms.size]
+                        val base = palette.rooms[slots[roomId] ?: 0]
+                        val pattern = patterns.getOrPut(roomId) {
+                            floorPattern(map.segmentMaterials[roomId], map.segmentMaterialDirections[roomId])
+                        }
+                        val floor = if (pattern == FloorPattern.NONE) base else shaded(base, textureShade(pattern, x, y))
+                        roomPaint.color = if (carpet != null && carpet[rowOff + x].toInt() == 1) shaded(floor, carpetShade(x, y)) else floor
                         roomPaint
                     } else floorPaint
                 }
@@ -321,10 +347,12 @@ private fun drawFloor(canvas: Canvas, map: ParsedMap, palette: MapPalette) {
             )
         }
     }
+    canvas.drawPath(mapOutlinePath(map), Paint().apply { blendMode = BlendMode.DstIn })
+    canvas.restore()
 }
 
-private fun drawOverlays(canvas: Canvas, map: ParsedMap, palette: MapPalette, drawRestrictions: Boolean) {
-    if (map.pathMm.size >= 2) drawPath(canvas, map, palette)
+private fun drawOverlays(canvas: Canvas, map: ParsedMap, palette: MapPalette, drawRestrictions: Boolean, includeRoute: Boolean = true) {
+    if (includeRoute && map.pathMm.size >= 2) drawPath(canvas, map, palette)
     if (drawRestrictions) {
         map.carpetAreas.forEach { drawZone(canvas, map, it, CARPET_FILL, CARPET_STROKE) }
         map.thresholds.forEach { drawZone(canvas, map, it, THRESHOLD_FILL, THRESHOLD_STROKE) }
@@ -332,9 +360,42 @@ private fun drawOverlays(canvas: Canvas, map: ParsedMap, palette: MapPalette, dr
         map.noGoZones.forEach { drawZone(canvas, map, it, NO_GO_FILL, NO_GO_STROKE) }
         map.virtualWalls.forEach { drawWall(canvas, map, it) }
     }
-    // Square dock, round robot: the two markers stay distinguishable without relying on colour.
-    map.chargerMm?.let { drawMarker(canvas, map, it, palette.charger, palette.markerRing, square = true) }
-    map.robotMm?.let { drawMarker(canvas, map, it, palette.robot, palette.markerRing, square = false) }
+    if (includeRoute) drawMarkers(canvas, map, palette)
+}
+
+// Square dock, round robot: the two markers stay distinguishable without relying on colour.
+private fun drawMarkers(canvas: Canvas, map: ParsedMap, palette: MapPalette, yaw: Float = 0f, squash: Float = 1f) {
+    map.chargerMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.charger, palette.markerRing, square = true) } }
+    map.robotMm?.let { p -> upright(canvas, map, p, yaw, squash) { drawMarker(canvas, map, p, palette.robot, palette.markerRing, square = false, headingDegrees = p.angle + 180f) } }
+}
+
+/** Draws a marker undoing the map's turn and tilt around its own spot, so it stays upright on screen. */
+private inline fun upright(canvas: Canvas, map: ParsedMap, point: ParsedMapPoint, yaw: Float, squash: Float, draw: () -> Unit) {
+    val x = (point.x / 50f) - map.pixelOffsetLeft
+    val y = (map.height - 1) - ((point.y / 50f) - map.pixelOffsetTop)
+    canvas.save()
+    canvas.translate(x, y)
+    canvas.rotate(-yaw)
+    canvas.scale(1f, 1f / squash)
+    canvas.translate(-x, -y)
+    draw()
+    canvas.restore()
+}
+
+/**
+ * The route and the two markers, drawn straight to the screen through the map's transform instead of
+ * into a bitmap, so they stay sharp at any zoom. [scale] is how many layer pixels make one cell.
+ */
+internal fun DrawScope.drawRouteAndMarkers(map: ParsedMap, view: MapView, scale: Int, dark: Boolean) {
+    val palette = if (dark) DarkPalette else LightPalette
+    withTransform({
+        // The same matrix as the floor, so the route lies on the rooms it ran over at any heading and tilt.
+        transform(view.layerMatrix(0f))
+        scale(scale.toFloat(), scale.toFloat(), Offset.Zero)
+    }) {
+        if (map.pathMm.size >= 2) drawPath(drawContext.canvas, map, palette)
+        drawMarkers(drawContext.canvas, map, palette, view.yawDegrees, view.squash)
+    }
 }
 
 private fun drawZone(canvas: Canvas, map: ParsedMap, zone: MapZone, fill: Color, stroke: Color) {
@@ -370,30 +431,48 @@ private fun drawWall(canvas: Canvas, map: ParsedMap, wall: VirtualWall) {
 }
 
 private fun drawPath(canvas: Canvas, map: ParsedMap, palette: MapPalette) {
-    val gfxPath = Path()
+    val main = Path()
+    val wash = Path()
+    var kind = -1
     var started = false
-    for (point in map.pathMm) {
+    for ((i, point) in map.pathMm.withIndex()) {
+        val flag = map.pathFlags.getOrElse(i) { 0 }
+        // As the app's route parser does: only bit 1 is a wash trip; bits 3 and 4 stay on the main route.
+        val now = if (flag and 0b10 != 0) 2 else 0
         val cellX = (point.x / 50f) - map.pixelOffsetLeft
-        val cellYBottom = (point.y / 50f) - map.pixelOffsetTop
-        val cellY = (map.height - 1) - cellYBottom
+        val cellY = (map.height - 1) - ((point.y / 50f) - map.pixelOffsetTop)
         if (cellX !in 0f..map.width.toFloat() || cellY !in 0f..map.height.toFloat()) {
             started = false
             continue
         }
-        if (!started) {
-            gfxPath.moveTo(cellX, cellY)
-            started = true
-        } else {
-            gfxPath.lineTo(cellX, cellY)
-        }
+        val target = if (now == 2) wash else main
+        if (!started || now != kind) target.moveTo(cellX, cellY) else target.lineTo(cellX, cellY)
+        started = true
+        kind = now
     }
-    val pathPaint = Paint().apply {
-        color = palette.path
+    // A wide faint band for the ground the robot has covered, under the thin line of its route.
+    canvas.drawPath(main, Paint().apply {
+        color = Color(0x4CE5E5E5) // the app's mopPathColor, #e5e5e54c
         style = PaintingStyle.Stroke
-        strokeWidth = 1f
+        strokeWidth = 6.5f
         strokeCap = StrokeCap.Round
+        strokeJoin = StrokeJoin.Round
+    })
+    for (line in listOf(main)) {
+        canvas.drawPath(line, Paint().apply {
+            color = palette.path
+            style = PaintingStyle.Stroke
+            strokeWidth = 0.9f
+            strokeCap = StrokeCap.Round
+        })
     }
-    canvas.drawPath(gfxPath, pathPaint)
+    // The trips to the dock to wash the mop are dashed.
+    canvas.drawPath(wash, Paint().apply {
+        color = Color(0x33FFFFFF) // the app's backWashPathColor, #FFFFFF33
+        style = PaintingStyle.Stroke
+        strokeWidth = 0.9f
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 3f))
+    })
 }
 
 private fun drawMarker(
@@ -403,7 +482,8 @@ private fun drawMarker(
     color: Color,
     ring: Color,
     square: Boolean,
-    radius: Float = 4f,
+    radius: Float = 5.5f,
+    headingDegrees: Float = 0f,
 ) {
 
     val cellX = (point.x / 50f) - map.pixelOffsetLeft
@@ -414,13 +494,52 @@ private fun drawMarker(
     val ringPaint = Paint().apply { this.color = ring }
     val fillPaint = Paint().apply { this.color = color }
     if (square) {
-        canvas.drawRect(
-            Rect(cellX - radius - 1f, cellY - radius - 1f, cellX + radius + 1f, cellY + radius + 1f),
-            ringPaint,
-        )
-        canvas.drawRect(Rect(cellX - radius, cellY - radius, cellX + radius, cellY + radius), fillPaint)
+        val r = radius * 0.8f
+        canvas.drawRoundRect(cellX - r - 1f, cellY - r - 1f, cellX + r + 1f, cellY + r + 1f, 2.5f, 2.5f, ringPaint)
+        canvas.drawRoundRect(cellX - r, cellY - r, cellX + r, cellY + r, 2f, 2f, fillPaint)
+        // A small house for the dock.
+        val house = Path().apply {
+            moveTo(cellX, cellY - r * 0.6f)
+            lineTo(cellX + r * 0.6f, cellY - r * 0.05f)
+            lineTo(cellX + r * 0.4f, cellY - r * 0.05f)
+            lineTo(cellX + r * 0.4f, cellY + r * 0.55f)
+            lineTo(cellX - r * 0.4f, cellY + r * 0.55f)
+            lineTo(cellX - r * 0.4f, cellY - r * 0.05f)
+            lineTo(cellX - r * 0.6f, cellY - r * 0.05f)
+            close()
+        }
+        canvas.drawPath(house, Paint().apply { this.color = Color.White })
     } else {
         canvas.drawCircle(Offset(cellX, cellY), radius + 1.5f, ringPaint)
-        canvas.drawCircle(Offset(cellX, cellY), radius, fillPaint)
+        drawRobotBody(canvas, Offset(cellX, cellY), radius, headingDegrees)
     }
+}
+
+/**
+ * The robot seen from above, turned to its heading: a disc with an inner ring, the bin cover across its back,
+ * the lidar turret ahead of centre and the button ahead of that. Proportions are python-roborock's.
+ */
+private fun drawRobotBody(canvas: Canvas, c: Offset, r: Float, headingDegrees: Float) {
+    // A white shell with slate detail, as the robot looks from above, whatever the palette.
+    val ink = Color(0xFF455A64)
+    val unit = r / 16f
+    val line = r * 0.09f
+    fun stroke(color: Color) = Paint().apply { this.color = color; style = PaintingStyle.Stroke; strokeWidth = line }
+    fun fill(color: Color) = Paint().apply { this.color = color }
+    canvas.drawCircle(c, r, fill(Color.White))
+    canvas.drawCircle(c, r, stroke(ink))
+    canvas.drawCircle(c, unit * 14f, stroke(ink))
+    val rad = headingDegrees / 180f * PI.toFloat()
+    // The bin cover is a chord on the side away from the heading.
+    val back = unit * 13f
+    fun end(offsetDegrees: Float): Offset {
+        val a = (headingDegrees + offsetDegrees) / 180f * PI.toFloat()
+        return Offset(c.x - back * cos(a), c.y + back * sin(a))
+    }
+    canvas.drawLine(end(104f), end(-104f), stroke(ink))
+    val lidar = Offset(c.x + unit * 3f * cos(rad), c.y - unit * 3f * sin(rad))
+    canvas.drawCircle(lidar, unit * 4f, fill(Color.White))
+    canvas.drawCircle(lidar, unit * 4f, stroke(ink))
+    val button = Offset(c.x + unit * 10f * cos(rad), c.y - unit * 10f * sin(rad))
+    canvas.drawCircle(button, unit * 2f, fill(ink.copy(alpha = 0.6f)))
 }

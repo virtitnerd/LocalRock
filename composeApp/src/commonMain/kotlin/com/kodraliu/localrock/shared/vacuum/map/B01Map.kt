@@ -116,6 +116,10 @@ data class ParsedMap(
     val obstacles: List<MapObstacle> = emptyList(),
 
     val originalGrid: ByteArray? = null,
+    /** Per path point: bit 1 is a trip to wash the mop. Empty if unknown. */
+    val pathFlags: List<Int> = emptyList(),
+    /** One byte per grid cell, 1 where the robot has seen carpet; null if the map has none. */
+    val carpetMask: ByteArray? = null,
 ) {
     val floorCells: Int by lazy { grid.count { (it.toInt() and 0xff) == 128 } }
     val wallCells: Int by lazy { grid.count { (it.toInt() and 0xff) == 127 } }
@@ -133,7 +137,9 @@ data class ParsedMap(
             other.format == format &&
             other.carpetAreas == carpetAreas &&
             other.thresholds == thresholds &&
-            other.obstacles == obstacles
+            other.pathFlags == pathFlags &&
+            other.obstacles == obstacles &&
+            (carpetMask?.contentEquals(other.carpetMask ?: ByteArray(0)) ?: (other.carpetMask == null))
 
     override fun hashCode(): Int {
         var r = width
@@ -152,7 +158,9 @@ data class ParsedMap(
         r = 31 * r + format.hashCode()
         r = 31 * r + carpetAreas.hashCode()
         r = 31 * r + thresholds.hashCode()
+        r = 31 * r + pathFlags.hashCode()
         r = 31 * r + obstacles.hashCode()
+        r = 31 * r + (carpetMask?.contentHashCode() ?: 0)
         return r
     }
 }
@@ -247,6 +255,8 @@ data class ParsedMapRoom(
     val name: String,
     val labelNormX: Float? = null,
     val labelNormY: Float? = null,
+    /** How many cells of the room run across the map at its label, so a name can be fitted inside it. */
+    val labelSpanCells: Int? = null,
 )
 
 data class ParsedMapPoint(
@@ -308,7 +318,7 @@ fun ParsedMap.roomIdAtCell(idx: Int): Int? {
     if (idx !in grid.indices) return null
     if (originalGrid != null) {
         val v = originalGrid[idx].toInt() and 0xff
-        if (v == 0 || (v and 0x07) == 1) return null
+        if ((v and 0x07) != 7) return null
         return ((v ushr 3) and 0x1f).takeIf { it > 0 }
     }
     val v = grid[idx].toInt() and 0xff
