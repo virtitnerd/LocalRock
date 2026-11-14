@@ -1,5 +1,6 @@
 package com.kodraliu.localrock.shared.settings
 
+import com.kodraliu.localrock.shared.webrtc.VideoExperiments
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -166,6 +167,13 @@ class AppSettings(private val settings: Settings) {
     fun setNotifyProgress(value: Boolean) {
         settings.putBoolean(KEY_NOTIFY_PROGRESS, value)
         _notifyProgress.value = value
+    }
+
+    /** The debug live-view offer switches; empty text means the shipped defaults. */
+    fun videoExperiments(): VideoExperiments = VideoExperiments.decode(settings.getStringOrNull("video_experiments"))
+
+    fun setVideoExperiments(value: VideoExperiments) {
+        if (value.isDefault) settings.remove("video_experiments") else settings.putString("video_experiments", value.encode())
     }
 
     fun cameraPin(duid: String): String? = settings.getStringOrNull("camera_pin_$duid")

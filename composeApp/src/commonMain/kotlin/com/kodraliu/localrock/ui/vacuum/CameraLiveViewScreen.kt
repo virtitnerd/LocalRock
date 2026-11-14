@@ -22,6 +22,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewModelScope
 import com.kodraliu.localrock.shared.webrtc.RtcStats
+import com.kodraliu.localrock.shared.webrtc.VideoExperiments
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +82,7 @@ fun CameraLiveViewScreen(
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
-    val liveSession = remember { viewModel.cameraSession() }
+    val liveSession = remember { viewModel.cameraSession().also { it.experiments = container.appSettings.videoExperiments() } }
     val state by liveSession.state.collectAsState()
     val peer by liveSession.peer.collectAsState()
     val pinLockSeconds by liveSession.pinLockSeconds.collectAsState()
@@ -275,7 +278,12 @@ fun CameraLiveViewScreen(
                 }
             }
 
-            if (gearOpen) CallSettingsDialog(viewModel) { gearOpen = false }
+            if (gearOpen) CallSettingsDialog(
+                viewModel,
+                experiments = container.appSettings.videoExperiments(),
+                onExperiments = { e -> container.appSettings.setVideoExperiments(e); liveSession.experiments = e },
+                onRestart = { liveSession.restartWithQuality(pin, quality) },
+            ) { gearOpen = false }
 
             if (controlsVisible || state !is CameraLiveSession.State.Streaming) Row(
                 Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp, start = 12.dp),
@@ -304,12 +312,23 @@ fun CameraLiveViewScreen(
 }
 
 @Composable
-private fun CallSettingsDialog(viewModel: VacuumViewModel, onClose: () -> Unit) {
+private fun CallSettingsDialog(
+    viewModel: VacuumViewModel,
+    experiments: VideoExperiments,
+    onExperiments: (VideoExperiments) -> Unit,
+    onRestart: () -> Unit,
+    onClose: () -> Unit,
+) {
+    var shown by remember { mutableStateOf(experiments) }
+    var experimentsOpen by remember { mutableStateOf(false) }
+    if (experimentsOpen) VideoExperimentsDialog(shown, { shown = it; onExperiments(it) }, onRestart) { experimentsOpen = false }
     var volume by remember { mutableStateOf(50f) }
     val scope = rememberCoroutineScope()
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("Call volume") },
+        title = {
+            Text("Call volume", Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { experimentsOpen = true }) })
+        },
         text = {
             Column {
                 Text("How loud the robot's speaker is during a call.", style = MaterialTheme.typography.bodySmall)

@@ -48,4 +48,4 @@ interface RtcPeer {
 
 expect val liveViewSupported: Boolean
 
-expect fun createRtcPeer(iceServers: List<RtcIceServer>): RtcPeer
+expect fun createRtcPeer(iceServers: List<RtcIceServer>, experiments: VideoExperiments = VideoExperiments()): RtcPeer
