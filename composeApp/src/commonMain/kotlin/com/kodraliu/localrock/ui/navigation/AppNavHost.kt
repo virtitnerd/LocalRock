@@ -172,7 +172,7 @@ fun AppNavHost() {
             vacuumComposable<VacuumRemote>(navController, container) { VacuumRemoteScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumPinGo>(navController, container) { VacuumPinGoScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumHistory>(navController, container) { VacuumHistoryScreen(viewModel = it, onBack = back) }
-            vacuumComposable<VacuumCamera>(navController, container) { CameraLiveViewScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumCamera>(navController, container) { CameraLiveViewScreen(viewModel = it, onBack = back, onNavigate = open) }
             vacuumComposable<VacuumZoneClean>(navController, container) { ZoneCleanScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumMapEdit>(navController, container) { MapEditScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSchedule>(navController, container) { ScheduleScreen(viewModel = it, onBack = back) }

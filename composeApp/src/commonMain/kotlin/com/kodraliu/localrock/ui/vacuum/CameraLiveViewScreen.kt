@@ -22,8 +22,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewModelScope
 import com.kodraliu.localrock.shared.webrtc.RtcStats
-import com.kodraliu.localrock.shared.webrtc.VideoExperiments
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -72,6 +70,20 @@ import com.kodraliu.localrock.shared.webrtc.RtcVideoView
 import com.kodraliu.localrock.shared.webrtc.liveViewSupported
 import com.kodraliu.localrock.ui.LandscapeWhile
 import com.kodraliu.localrock.ui.LocalAppContainer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.text.font.FontWeight
+import com.kodraliu.localrock.ui.components.BonusBadge
+import com.kodraliu.localrock.ui.components.BonusKind
+import com.kodraliu.localrock.ui.navigation.VacuumHistory
+import com.kodraliu.localrock.ui.navigation.VacuumSchedule
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsRemoteViewing
+import com.kodraliu.localrock.ui.strings.RemoteStrings
+import kotlinx.coroutines.delay
+import kotlin.time.TimeSource
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +91,7 @@ import com.kodraliu.localrock.ui.LocalAppContainer
 fun CameraLiveViewScreen(
     viewModel: VacuumViewModel,
     onBack: () -> Unit,
+    onNavigate: ((Any) -> Unit)? = null,
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
@@ -94,8 +107,13 @@ fun CameraLiveViewScreen(
     var panel by remember { mutableStateOf<CameraPanel?>(null) }
     var gearOpen by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var experimentsOpen by remember { mutableStateOf(false) }
+    var experiments by remember { mutableStateOf(container.appSettings.videoExperiments()) }
+    var helpOpen by remember { mutableStateOf(false) }
     // Held at screen level so hiding the controls does not end remote control.
     val rcLink = rememberRemoteControlLink(viewModel)
+    val lastTouch = remember { object { var at = TimeSource.Monotonic.markNow() } }
     val robotStatus by viewModel.repository.status.collectAsState()
     val petSearch by viewModel.repository.petSearchActive.collectAsState()
     val scope = rememberCoroutineScope()
@@ -129,13 +147,40 @@ fun CameraLiveViewScreen(
         }
     }
 
+    val hideAllowed = CameraAutoHide.allowed(
+        streaming = state is CameraLiveSession.State.Streaming,
+        panelOpen = panel != null,
+        menuOpen = menuOpen,
+        dialogOpen = gearOpen || experimentsOpen,
+    )
+    LaunchedEffect(controlsVisible, hideAllowed) {
+        if (!controlsVisible || !hideAllowed) return@LaunchedEffect
+        lastTouch.at = TimeSource.Monotonic.markNow()
+        while (true) {
+            val left = CameraAutoHide.delayLeftMs(lastTouch.at.elapsedNow().inWholeMilliseconds)
+            if (left == 0L) { controlsVisible = false; break }
+            delay(left)
+        }
+    }
+
     Scaffold(
         containerColor = Color.Black,
         contentWindowInsets = WindowInsets(0),
     ) { _ ->
         Box(
             // Black runs under the navigation bar too; only the video area is inset.
-            modifier = Modifier.fillMaxSize().background(Color.Black),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                // Every touch, the joystick included, restarts the auto-hide timer without being consumed.
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent(PointerEventPass.Initial)
+                            lastTouch.at = TimeSource.Monotonic.markNow()
+                        }
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
             if (!liveViewSupported) {
@@ -253,39 +298,54 @@ fun CameraLiveViewScreen(
                 }
 
                 is CameraLiveSession.State.Failed -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp),
-                    ) {
-                        Icon(Icons.Default.VideocamOff, null, Modifier.size(48.dp), tint = Color.White)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            s.message,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        if (s.canActivate) {
-                            Button(onClick = { liveSession.activate(pin, viewModel.twoKeyVideo) }) { Text("Activate remote viewing") }
-                        } else {
-                            Button(onClick = { liveSession.start(pin) }) { Text("Retry") }
+                    LaunchedEffect(s) { helpOpen = false }
+                    if (helpOpen) {
+                        CameraHelpPage(CameraHelp.appCodeOf(s.message)) { helpOpen = false }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp),
+                        ) {
+                            Icon(Icons.Default.VideocamOff, null, Modifier.size(48.dp), tint = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                RemoteStrings.VIDEO_LOADING_FAILED,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                s.message,
+                                color = Color.White.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                if (s.canActivate) {
+                                    Button(onClick = { liveSession.activate(pin, viewModel.twoKeyVideo) }) { Text("Activate remote viewing") }
+                                } else {
+                                    Button(onClick = { liveSession.start(pin) }) { Text(RemoteStrings.RETRY) }
+                                }
+                                OutlinedButton(onClick = { helpOpen = true }) { Text(RemoteStrings.HELP, color = Color.White) }
+                            }
+                            TextButton(onClick = {
+                                container.appSettings.setCameraPin(duid, null)
+                                pin = ""
+                                liveSession.stop()
+                            }) { Text("Change PIN", color = Color.White) }
                         }
-                        TextButton(onClick = {
-                            container.appSettings.setCameraPin(duid, null)
-                            pin = ""
-                            liveSession.stop()
-                        }) { Text("Change PIN", color = Color.White) }
                     }
                 }
             }
 
-            if (gearOpen) CallSettingsDialog(
-                viewModel,
-                experiments = container.appSettings.videoExperiments(),
-                onExperiments = { e -> container.appSettings.setVideoExperiments(e); liveSession.experiments = e },
-                onRestart = { liveSession.restartWithQuality(pin, quality) },
-            ) { gearOpen = false }
+            if (gearOpen) CallSettingsDialog(viewModel) { gearOpen = false }
+            if (experimentsOpen) VideoExperimentsDialog(
+                experiments,
+                { e -> experiments = e; container.appSettings.setVideoExperiments(e); liveSession.experiments = e },
+                { liveSession.restartWithQuality(pin, quality) },
+            ) { experimentsOpen = false }
 
             if (controlsVisible || state !is CameraLiveSession.State.Streaming) Row(
                 Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp, start = 12.dp),
@@ -308,28 +368,43 @@ fun CameraLiveViewScreen(
                         }
                     }
                 }
+                Box {
+                    RoundButton(Icons.Default.MoreVert, RemoteStrings.MORE, Color.Black.copy(alpha = 0.45f)) { menuOpen = true }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        CameraMenu.items(onNavigate != null, viewModel.supportsPatrol).forEach { item ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(item.label)
+                                        if (item.beta) BonusBadge(BonusKind.Beta)
+                                    }
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    when (item) {
+                                        CameraMenuItem.RemoteViewingSettings -> onNavigate?.invoke(VacuumSettingsRemoteViewing)
+                                        CameraMenuItem.ScheduledCruise -> onNavigate?.invoke(VacuumSchedule)
+                                        CameraMenuItem.History -> onNavigate?.invoke(VacuumHistory)
+                                        CameraMenuItem.VideoExperiments -> experimentsOpen = true
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CallSettingsDialog(
-    viewModel: VacuumViewModel,
-    experiments: VideoExperiments,
-    onExperiments: (VideoExperiments) -> Unit,
-    onRestart: () -> Unit,
-    onClose: () -> Unit,
-) {
-    var shown by remember { mutableStateOf(experiments) }
-    var experimentsOpen by remember { mutableStateOf(false) }
-    if (experimentsOpen) VideoExperimentsDialog(shown, { shown = it; onExperiments(it) }, onRestart) { experimentsOpen = false }
+private fun CallSettingsDialog(viewModel: VacuumViewModel, onClose: () -> Unit) {
     var volume by remember { mutableStateOf(50f) }
     val scope = rememberCoroutineScope()
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onClose,
         title = {
-            Text("Call volume", Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { experimentsOpen = true }) })
+            Text("Call volume")
         },
         text = {
             Column {
@@ -346,6 +421,36 @@ private fun CallSettingsDialog(
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Done") } },
     )
+}
+
+/** Short Help page for start failures: the official fix texts, the one for this error first. */
+@Composable
+private fun CameraHelpPage(appCode: Int?, onClose: () -> Unit) {
+    val tips = CameraHelp.tips(appCode)
+    val likely = CameraHelp.hasMatch(appCode)
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(RemoteStrings.ERROR_DETAIL, color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Text(RemoteStrings.HELP_INTRO, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodyMedium)
+        tips.forEachIndexed { i, tip ->
+            if (i == 0 && likely) {
+                Text(RemoteStrings.HELP_LIKELY, color = Color(0xFFFFB74D), style = MaterialTheme.typography.labelMedium)
+            }
+            Text(
+                "${i + 1}. $tip",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (i == 0 && likely) FontWeight.SemiBold else null,
+            )
+        }
+        TextButton(onClick = onClose) { Text(RemoteStrings.BACK, color = Color.White) }
+    }
 }
 
 @Composable

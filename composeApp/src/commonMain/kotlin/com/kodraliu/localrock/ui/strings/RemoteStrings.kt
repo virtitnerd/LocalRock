@@ -26,6 +26,12 @@ object RemoteStrings {
     const val HISTORY = "History" // verified
     const val CRUISE = "Cruise" // verified
     const val SEARCH_FOR_PET = "Search for the Pet" // verified
-    const val RETRY = "Retry" // inferred
+    const val RETRY = "Retry" // verified (button_title_retry)
     const val HELP = "Help" // inferred
+    const val MORE = "More" // inferred
+    const val VIDEO_EXPERIMENTS = "Video experiments" // inferred
+    const val VIDEO_LOADING_FAILED = "Video loading failed" // verified (video_load_failed_view)
+    const val ERROR_DETAIL = "Error Detail" // verified (video_load_failed_view_reason)
+    const val HELP_INTRO = "If the video does not start, try these fixes:" // inferred
+    const val HELP_LIKELY = "Most likely for this error" // inferred
 }

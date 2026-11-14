@@ -21,7 +21,7 @@ import com.kodraliu.localrock.shared.webrtc.CodecOrder
 import com.kodraliu.localrock.shared.webrtc.VideoDirection
 import com.kodraliu.localrock.shared.webrtc.VideoExperiments
 
-/** Hidden debug panel (long-press the call settings title): each switch applies the next time the stream starts. */
+/** Debug panel opened from the live view popup (Beta): each switch applies the next time the stream starts. */
 @Composable
 fun VideoExperimentsDialog(
     value: VideoExperiments,
