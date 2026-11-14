@@ -1,6 +1,13 @@
 package com.kodraliu.localrock.shared.webrtc
 
 import com.kodraliu.localrock.shared.protocol.appContextOrNull
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -15,6 +22,8 @@ import org.webrtc.MediaStream
 import org.webrtc.MediaStreamTrack
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RTCStats
+import org.webrtc.RTCStatsReport
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
@@ -33,7 +42,10 @@ internal val rtcEglBase: EglBase by lazy { EglBase.create() }
 private val peerConnectionFactory: PeerConnectionFactory by lazy {
     val ctx = requireNotNull(appContextOrNull()) { "Android context not initialized" }
     PeerConnectionFactory.initialize(
-        PeerConnectionFactory.InitializationOptions.builder(ctx).createInitializationOptions()
+        PeerConnectionFactory.InitializationOptions.builder(ctx)
+            // A live view wants the newest frame, not a smooth one: no extra playout delay.
+            .setFieldTrials("WebRTC-ForcePlayoutDelay/min_ms:0,max_ms:0/")
+            .createInitializationOptions()
     )
     PeerConnectionFactory.builder()
         .setVideoDecoderFactory(DefaultVideoDecoderFactory(rtcEglBase.eglBaseContext))
@@ -50,6 +62,10 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     override val connectionState: StateFlow<RtcConnectionState> = _connectionState
 
     val videoTrack = MutableStateFlow<VideoTrack?>(null)
+
+    private val _stats = MutableStateFlow<RtcStats?>(null)
+    override val stats: StateFlow<RtcStats?> = _stats
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val pc: PeerConnection
 
@@ -68,6 +84,37 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
         pc = requireNotNull(peerConnectionFactory.createPeerConnection(config, Observer())) {
             "createPeerConnection returned null"
         }
+        scope.launch {
+            while (true) {
+                delay(2000)
+                if (_connectionState.value == RtcConnectionState.CONNECTED) runCatching { pc.getStats { report -> readStats(report) } }
+            }
+        }
+    }
+
+    private fun readStats(report: RTCStatsReport) {
+        val all = report.statsMap
+        fun num(o: RTCStats?, key: String): Double? = (o?.members?.get(key) as? Number)?.toDouble()
+        fun str(o: RTCStats?, key: String): String? = o?.members?.get(key) as? String
+        val transport = all.values.firstOrNull { it.type == "transport" }
+        val pair = all[str(transport, "selectedCandidatePairId")]
+            ?: all.values.firstOrNull { it.type == "candidate-pair" && str(it, "state") == "succeeded" && it.members["nominated"] == true }
+        val local = all[str(pair, "localCandidateId")]
+        val remote = all[str(pair, "remoteCandidateId")]
+        val relayed = str(local, "candidateType") == "relay" || str(remote, "candidateType") == "relay"
+        val video = all.values.firstOrNull { it.type == "inbound-rtp" && (str(it, "kind") ?: str(it, "mediaType")) == "video" }
+        val emitted = num(video, "jitterBufferEmittedCount") ?: 0.0
+        val buffer = if (emitted > 0) (num(video, "jitterBufferDelay") ?: 0.0) / emitted * 1000 else null
+        val snapshot = RtcStats(
+            relayed = relayed,
+            rttMs = num(pair, "currentRoundTripTime")?.let { (it * 1000).toInt() },
+            width = num(video, "frameWidth")?.toInt(),
+            height = num(video, "frameHeight")?.toInt(),
+            fps = num(video, "framesPerSecond")?.toInt(),
+            bufferMs = buffer?.toInt(),
+        )
+        Log.i("RtcStats", "$snapshot local=${str(local, "candidateType")} remote=${str(remote, "candidateType")}")
+        _stats.value = snapshot
     }
 
     override suspend fun createOffer(): String {
@@ -114,6 +161,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     }
 
     override fun close() {
+        scope.cancel()
         videoTrack.value = null
         _connectionState.value = RtcConnectionState.CLOSED
         runCatching { pc.close() }

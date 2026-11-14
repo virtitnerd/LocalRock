@@ -1,6 +1,18 @@
 package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.rememberCoroutineScope
+import com.kodraliu.localrock.shared.webrtc.RtcStats
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.camera.CameraLiveSession
 import com.kodraliu.localrock.shared.webrtc.RtcVideoView
 import com.kodraliu.localrock.shared.webrtc.liveViewSupported
+import com.kodraliu.localrock.ui.LandscapeWhile
 import com.kodraliu.localrock.ui.LocalAppContainer
 
 
@@ -52,6 +65,7 @@ import com.kodraliu.localrock.ui.LocalAppContainer
 fun CameraLiveViewScreen(
     viewModel: VacuumViewModel,
     onBack: () -> Unit,
+    onPinGo: () -> Unit = {},
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
@@ -61,6 +75,10 @@ fun CameraLiveViewScreen(
 
     var pin by remember { mutableStateOf(container.appSettings.cameraPin(duid) ?: "") }
     var autoStarted by remember { mutableStateOf(false) }
+    var quality by remember { mutableStateOf("HD") }
+    val scope = rememberCoroutineScope()
+
+    LandscapeWhile(liveViewSupported)
 
     DisposableEffect(Unit) {
         onDispose { liveSession.dispose() }
@@ -76,23 +94,11 @@ fun CameraLiveViewScreen(
 
     Scaffold(
         containerColor = Color.Black,
-        topBar = {
-            TopAppBar(
-                title = { Text(viewModel.deviceName, color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.6f),
-                ),
-            )
-        },
-    ) { paddingValues ->
+        contentWindowInsets = WindowInsets(0),
+    ) { _ ->
         Box(
             // Black runs under the navigation bar too; only the video area is inset.
-            modifier = Modifier.fillMaxSize().background(Color.Black).padding(paddingValues),
+            modifier = Modifier.fillMaxSize().background(Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             if (!liveViewSupported) {
@@ -103,15 +109,31 @@ fun CameraLiveViewScreen(
                 return@Box
             }
 
-            Text(
+            if (state !is CameraLiveSession.State.Streaming) Text(
                 "BETA: work in progress, may not work on every robot",
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 8.dp)
                     .background(Color(0xFFB26A00), MaterialTheme.shapes.small)
                     .padding(horizontal = 10.dp, vertical = 3.dp),
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
+            )
+
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Go back",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 8.dp, start = 12.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(onClick = onBack)
+                    .padding(10.dp),
             )
 
             when (val s = state) {
@@ -161,15 +183,24 @@ fun CameraLiveViewScreen(
 
                 is CameraLiveSession.State.Streaming -> {
                     peer?.let { RtcVideoView(it, Modifier.fillMaxSize()) }
-                    Text(
-                        "LIVE",
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 12.dp, end = 16.dp)
-                            .background(Color.Red.copy(alpha = 0.8f), MaterialTheme.shapes.small)
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
+                    CameraJoystick(
+                        viewModel,
+                        Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 24.dp, bottom = 24.dp),
+                    )
+                    CameraMiniMap(
+                        viewModel,
+                        onPinGo,
+                        Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp),
+                    )
+                    val stats by (peer?.stats ?: noStats).collectAsState()
+                    StatsChip(
+                        stats,
+                        quality,
+                        onQuality = { q ->
+                            quality = q
+                            liveSession.restartWithQuality(pin, q)
+                        },
+                        modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp),
                     )
                 }
 
@@ -278,5 +309,38 @@ private fun CameraMessage(icon: @Composable () -> Unit, text: String) {
         icon()
         Spacer(Modifier.height(12.dp))
         Text(text, color = Color.White, textAlign = TextAlign.Center)
+    }
+}
+
+private val noStats = MutableStateFlow<RtcStats?>(null)
+
+@Composable
+private fun StatsChip(stats: RtcStats?, quality: String, onQuality: (String) -> Unit, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    val info = stats?.let {
+        listOfNotNull(
+            if (it.relayed) "Relay" else "Direct",
+            it.height?.takeIf { h -> h > 0 }?.let { h -> "${h}p" },
+            it.fps?.takeIf { f -> f > 0 }?.let { f -> "${f}fps" },
+            it.bufferMs?.let { b -> "buf ${b}ms" },
+            it.rttMs?.let { r -> "rtt ${r}ms" },
+        ).joinToString(" | ")
+    }
+    Box(modifier) {
+        Text(
+            listOfNotNull(quality, info).joinToString(" | "),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.medium)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable { open = true }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            listOf("SD", "HD", "FHD", "AUTO").forEach { q ->
+                DropdownMenuItem(text = { Text(q) }, onClick = { open = false; onQuality(q) })
+            }
+        }
     }
 }

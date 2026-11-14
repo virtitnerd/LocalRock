@@ -2001,6 +2001,7 @@ private fun PinGoScreen(
     var tapPoint by remember { mutableStateOf<Offset?>(null) }
     var imageSize by remember { mutableStateOf(IntSize.Zero) }
     var sent by remember { mutableStateOf(false) }
+    var outsideRoom by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -2054,13 +2055,17 @@ private fun PinGoScreen(
                 ) {
                     Canvas(
                         modifier = Modifier
-                            .fillMaxWidth()
                             .aspectRatio(aspectRatio)
                             .onSizeChanged { imageSize = it }
                             .pointerInput(parsedMap) {
                                 detectTapGestures { offset ->
-                                    tapPoint = offset
-                                    sent = false
+                                    if (parsedMap.isRoomFloorAt(offset, size.width.toFloat(), size.height.toFloat())) {
+                                        tapPoint = offset
+                                        sent = false
+                                        outsideRoom = false
+                                    } else {
+                                        outsideRoom = true
+                                    }
                                 }
                             },
                     ) {
@@ -2080,6 +2085,7 @@ private fun PinGoScreen(
                 }
                 Text(
                     text = when {
+                        outsideRoom -> "Pins can only go inside a room."
                         sent -> "Command sent! Robot is heading there."
                         tapPoint != null -> "Target set — tap Go to send the robot there."
                         else -> "Tap on the map to set a destination."

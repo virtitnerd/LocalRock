@@ -260,12 +260,15 @@ suspend fun VacuumSession.resetHomesecPassword(): V1Response = sendCommand("rese
 suspend fun VacuumSession.getHomesecConnectStatus(): V1Response =
     sendCommand("get_homesec_connect_status")
 
-suspend fun VacuumSession.startCameraPreview(clientIdHex: String, passwordMd5Hex: String): V1Response =
+suspend fun VacuumSession.startCameraPreview(clientIdHex: String, passwordMd5Hex: String, quality: String = "HD"): V1Response =
     sendCommandRaw("start_camera_preview", JsonObject(mapOf(
         "client_id" to JsonPrimitive(clientIdHex),
-        "quality" to JsonPrimitive("HD"),
+        "quality" to JsonPrimitive(quality),
         "password" to JsonPrimitive(passwordMd5Hex),
     )))
+
+suspend fun VacuumSession.switchVideoQuality(quality: String): V1Response =
+    sendCommandRaw("switch_video_quality", JsonObject(mapOf("quality" to JsonPrimitive(quality))))
 
 suspend fun VacuumSession.stopCameraPreview(clientIdHex: String): V1Response =
     sendCommandRaw("stop_camera_preview", JsonObject(mapOf("client_id" to JsonPrimitive(clientIdHex))))
