@@ -18,6 +18,7 @@ data class Capabilities(
     val smartPlan: Boolean,
     val waterSlide: Boolean,
     val fastRoute: Boolean,
+    val routes: RouteGates,
     // Camera, patrol and pets (B5).
     val camera: Boolean,
     val twoKeyVideo: Boolean,
@@ -83,6 +84,7 @@ fun buildCapabilities(
         smartPlan = isSmartPlanSupported(nfs),
         waterSlide = isWaterSlideSupported(nfs),
         fastRoute = isFastRouteSupported(nfs),
+        routes = routeGates(model, featureSet, nfs),
         camera = camera,
         twoKeyVideo = bit(TWO_KEY_VIDEO_FEATURE_BIT),
         remoteViewing = camera, // TODO(B5): official gate RNF 3 + RealTimeVideoPhoto

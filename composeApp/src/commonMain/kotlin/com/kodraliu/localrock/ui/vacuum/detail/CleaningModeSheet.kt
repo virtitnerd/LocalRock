@@ -1,11 +1,9 @@
 package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,18 +32,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.MopRoute
 import com.kodraliu.localrock.shared.vacuum.RoomCleanMode
+import com.kodraliu.localrock.shared.vacuum.RouteGates
 import com.kodraliu.localrock.shared.vacuum.VacuumFanPower
 import com.kodraliu.localrock.shared.vacuum.WaterBoxMode
+import com.kodraliu.localrock.shared.vacuum.WaterFlow
 import com.kodraliu.localrock.shared.vacuum.isCustomizeModeSet
 import com.kodraliu.localrock.shared.vacuum.isSmartModeSet
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapRoom
 import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
+import com.kodraliu.localrock.shared.vacuum.routeOptions
 import com.kodraliu.localrock.ui.strings.DeviceStrings
 
 internal enum class CleanPlan(val label: String) {
@@ -73,6 +76,8 @@ internal fun CleaningModeSheetContent(
     supportsSmartPlan: Boolean,
     cleanThenMop: Boolean,
     pureMop: Boolean,
+    waterSlide: Boolean,
+    routeGates: RouteGates,
     rooms: List<ParsedMapRoom>,
     roomCleanModes: List<RoomCleanMode>,
     roomModesLoaded: Boolean?,
@@ -124,7 +129,7 @@ internal fun CleaningModeSheetContent(
                 CountSelector(cleaningCount, onCountChange)
             }
             CleanPlan.PER_ROOM -> when (roomModesLoaded) {
-                true -> RoomCleanModesEditor(rooms, roomCleanModes, busy, onSaveRoomModes)
+                true -> RoomCleanModesEditor(rooms, roomCleanModes, busy, routeGates, onSaveRoomModes)
                 else -> Text(
                     if (roomModesLoaded == null) DeviceStrings.ROOM_MODES_LOADING else DeviceStrings.ROOM_MODES_FAILED,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
@@ -134,7 +139,7 @@ internal fun CleaningModeSheetContent(
             }
             CleanPlan.MANUAL -> GeneralPanel(
                 currentFanPower, currentWaterMode, currentRoute, seqType, cleaningCount, busy, cleanThenMop, pureMop,
-                onGeneralMode, onFanPowerSelected, onWaterModeSelected, onRouteSelected, onCountChange,
+                waterSlide, routeGates, onGeneralMode, onFanPowerSelected, onWaterModeSelected, onRouteSelected, onCountChange,
             )
         }
 
@@ -163,6 +168,8 @@ private fun GeneralPanel(
     busy: Boolean,
     cleanThenMop: Boolean,
     pureMop: Boolean,
+    waterSlide: Boolean,
+    routeGates: RouteGates,
     onGeneralMode: (GeneralMode) -> Unit,
     onFanPowerSelected: (Int) -> Unit,
     onWaterModeSelected: (Int) -> Unit,
@@ -187,33 +194,56 @@ private fun GeneralPanel(
             )
         }
     }
-    Box(Modifier.fillMaxWidth().heightIn(min = 320.dp)) {
+    // Every tab is measured and the sheet keeps the tallest height, so the tab row never moves under a finger.
+    TallestOf(
+        variants = modes,
+        shown = shown,
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+    ) { mode ->
         Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text(generalModeTip(shown), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (shown != GeneralMode.MOP) {
+            Text(generalModeTip(mode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (mode != GeneralMode.MOP) {
                 ModeOptionSelector(DeviceStrings.SUCTION_POWER, FAN_OPTIONS.map { it.second }, FAN_OPTIONS.indexOfFirst { it.first == currentFanPower }, !busy) {
                     onFanPowerSelected(FAN_OPTIONS[it].first)
                 }
             }
-            if (shown != GeneralMode.VACUUM) {
-                ModeOptionSelector(DeviceStrings.WATER_FLOW, WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(currentWaterMode) }, !busy) {
-                    onWaterModeSelected(WATER_OPTIONS[it].first)
+            if (mode != GeneralMode.VACUUM) {
+                if (waterSlide) {
+                    WaterFlowSlider(currentWaterMode, !busy) { onWaterModeSelected(WaterFlow.codeFor(it)) }
+                } else {
+                    ModeOptionSelector(DeviceStrings.WATER_FLOW, WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(currentWaterMode) }, !busy) {
+                        onWaterModeSelected(WATER_OPTIONS[it].first)
+                    }
                 }
             }
             CountSelector(cleaningCount, onCountChange)
-            ModeOptionSelector(DeviceStrings.ROUTE, ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == currentRoute }, !busy) {
-                onRouteSelected(ROUTE_OPTIONS[it].first)
+            val routes = routeOptions(routeGates, mopOnly = mode == GeneralMode.MOP)
+            ModeOptionSelector(DeviceStrings.ROUTE, routes.map { routeLabel(it.name) }, routes.indexOfFirst { it.code == currentRoute }, !busy) {
+                onRouteSelected(routes[it].code)
             }
         }
     }
 }
 
+/** Measures every variant but places only [shown], at the tallest variant's height. Unplaced ones draw nothing and take no taps. */
+@Composable
+private fun <T> TallestOf(variants: List<T>, shown: T, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
+    val all = if (shown in variants) variants else variants + shown
+    Layout(content = { all.forEach { content(it) } }, modifier = modifier) { measurables, constraints ->
+        val loose = constraints.copy(minHeight = 0)
+        val placeables = measurables.map { it.measure(loose) }
+        val visible = placeables[all.indexOf(shown)]
+        val height = placeables.maxOf { it.height }.coerceIn(constraints.minHeight, constraints.maxHeight)
+        layout(constraints.constrainWidth(placeables.maxOf { it.width }), height) { visible.place(0, 0) }
+    }
+}
+
 private fun roomModeSummary(mode: RoomCleanMode): String {
     val fan = ROOM_FAN_OPTIONS.firstOrNull { it.first == mode.fanPower }?.second ?: DeviceStrings.OTHER
-    val water = WATER_OPTIONS.firstOrNull { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }?.second ?: DeviceStrings.OTHER
+    val water = waterLabel(mode.waterBoxMode) ?: DeviceStrings.OTHER
     return when {
         mode.waterBoxMode == WaterBoxMode.OFF -> "${DeviceStrings.MODE_VACUUM} $fan"
         mode.fanPower == VacuumFanPower.OFF -> "${DeviceStrings.MODE_MOP} $water"
@@ -227,6 +257,7 @@ private fun RoomCleanModesEditor(
     rooms: List<ParsedMapRoom>,
     stored: List<RoomCleanMode>,
     busy: Boolean,
+    routeGates: RouteGates,
     onSave: (List<RoomCleanMode>) -> Unit,
 ) {
     val saved = remember(rooms, stored) { roomCleanModesFor(rooms.map { it.id }, stored) }
@@ -268,7 +299,10 @@ private fun RoomCleanModesEditor(
                             val fan = ROOM_FAN_OPTIONS[it].first
                             // A room with neither suction nor water would not be cleaned at all.
                             val water = if (fan == VacuumFanPower.OFF && mode.waterBoxMode == WaterBoxMode.OFF) WaterBoxMode.LOW else mode.waterBoxMode
-                            update(mode.copy(fanPower = fan, waterBoxMode = water))
+                            // Deep routes some robots allow only without suction fall back to Standard.
+                            val offered = routeOptions(routeGates, mopOnly = fan == VacuumFanPower.OFF).map { it.code }
+                            val route = if (mode.mopMode in DEEP_ROUTES && mode.mopMode !in offered) MopRoute.STANDARD else mode.mopMode
+                            update(mode.copy(fanPower = fan, waterBoxMode = water, mopMode = route))
                         }
                         ModeOptionSelector(DeviceStrings.WATER_FLOW, WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }, !busy) {
                             val water = WATER_OPTIONS[it].first
@@ -280,8 +314,9 @@ private fun RoomCleanModesEditor(
                             update(mode.copy(fanPower = fan, waterBoxMode = water, mopMode = route))
                         }
                         if (mode.waterBoxMode != WaterBoxMode.OFF) {
-                            ModeOptionSelector(DeviceStrings.ROUTE, ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == mode.mopMode }, !busy) {
-                                update(mode.copy(mopMode = ROUTE_OPTIONS[it].first))
+                            val routes = routeOptions(routeGates, mopOnly = mode.fanPower == VacuumFanPower.OFF)
+                            ModeOptionSelector(DeviceStrings.ROUTE, routes.map { routeLabel(it.name) }, routes.indexOfFirst { it.code == mode.mopMode }, !busy) {
+                                update(mode.copy(mopMode = routes[it].code))
                             }
                         }
                     }

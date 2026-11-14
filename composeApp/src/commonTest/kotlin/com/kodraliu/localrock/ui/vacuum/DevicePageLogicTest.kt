@@ -3,6 +3,9 @@ package com.kodraliu.localrock.ui.vacuum
 import com.kodraliu.localrock.shared.vacuum.DockErrorCodes
 import com.kodraliu.localrock.shared.vacuum.MainTab
 import com.kodraliu.localrock.shared.vacuum.MopRoute
+import com.kodraliu.localrock.shared.vacuum.RouteName
+import com.kodraliu.localrock.shared.vacuum.WaterFlow
+import com.kodraliu.localrock.shared.vacuum.WaterFlowBand
 import com.kodraliu.localrock.shared.vacuum.VacuumFanPower
 import com.kodraliu.localrock.shared.vacuum.VacuumStatus
 import com.kodraliu.localrock.shared.vacuum.WaterBoxMode
@@ -192,5 +195,28 @@ class DevicePageLogicTest {
         assertEquals(D.NO_CLEAN_YET, cleanDetailLine(null, null, false))
         assertEquals("12.3 m² last clean · 25 min", cleanDetailLine(12_300_000, 1500, false))
         assertEquals("1.0 m² so far", cleanDetailLine(1_000_000, 0, true))
+    }
+
+    @Test
+    fun water_flow_band_words_follow_the_slider() {
+        assertEquals(D.WATER_FLOW_SLIGHT, waterFlowBandLabel(WaterFlow.band(1)))
+        assertEquals(D.WATER_FLOW_MEDIUM, waterFlowBandLabel(WaterFlow.band(15)))
+        assertEquals(D.WATER_FLOW_EXTREME, waterFlowBandLabel(WaterFlow.band(30)))
+        assertEquals(7, WaterFlowBand.entries.map { waterFlowBandLabel(it) }.toSet().size)
+    }
+
+    @Test
+    fun water_label_names_slide_codes_and_chip_codes() {
+        assertEquals("${D.WATER_FLOW_MEDIUM} 15", waterLabel(235))
+        assertEquals("${D.WATER_FLOW_GENTLE} 8", waterLabel(228))
+        assertEquals(D.WATER_LOW, waterLabel(WaterBoxMode.LOW))
+        assertEquals(D.WATER_OFF, waterLabel(WaterBoxMode.OFF))
+        assertNull(waterLabel(WaterBoxMode.SMART))
+    }
+
+    @Test
+    fun route_words() {
+        assertEquals(D.ROUTE_FAST, routeLabel(RouteName.FAST))
+        assertEquals(D.ROUTE_DEEP_PLUS, routeLabel(RouteName.DEEP_PLUS))
     }
 }

@@ -2,6 +2,9 @@ package com.kodraliu.localrock.ui.vacuum
 
 import com.kodraliu.localrock.shared.vacuum.MainTab
 import com.kodraliu.localrock.shared.vacuum.MopRoute
+import com.kodraliu.localrock.shared.vacuum.RouteName
+import com.kodraliu.localrock.shared.vacuum.WaterFlow
+import com.kodraliu.localrock.shared.vacuum.WaterFlowBand
 import com.kodraliu.localrock.shared.vacuum.VacuumFanPower
 import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
 import com.kodraliu.localrock.shared.vacuum.VacuumStatus
@@ -30,14 +33,36 @@ internal val WATER_OPTIONS = listOf(
     WaterBoxMode.HIGH to DeviceStrings.WATER_HIGH,
 )
 
-internal val ROUTE_OPTIONS = listOf(
-    MopRoute.STANDARD to DeviceStrings.ROUTE_STANDARD,
-    MopRoute.DEEP to DeviceStrings.ROUTE_DEEP,
-    MopRoute.DEEP_PLUS to DeviceStrings.ROUTE_DEEP_PLUS,
-    MopRoute.FAST to DeviceStrings.ROUTE_FAST,
-)
-
 internal val DEEP_ROUTES = setOf(MopRoute.DEEP, MopRoute.DEEP_PLUS)
+
+/** Slider position when the robot reports no slide level (off, smart or custom). */
+internal const val DEFAULT_WATER_FLOW_LEVEL = 15
+
+internal fun waterFlowBandLabel(band: WaterFlowBand): String = when (band) {
+    WaterFlowBand.SLIGHT -> DeviceStrings.WATER_FLOW_SLIGHT
+    WaterFlowBand.LOW -> DeviceStrings.WATER_FLOW_LOW
+    WaterFlowBand.GENTLE -> DeviceStrings.WATER_FLOW_GENTLE
+    WaterFlowBand.MEDIUM -> DeviceStrings.WATER_FLOW_MEDIUM
+    WaterFlowBand.MODERATE -> DeviceStrings.WATER_FLOW_MODERATE
+    WaterFlowBand.HIGH -> DeviceStrings.WATER_FLOW_HIGH
+    WaterFlowBand.EXTREME -> DeviceStrings.WATER_FLOW_EXTREME
+}
+
+internal fun routeLabel(name: RouteName): String = when (name) {
+    RouteName.FAST -> DeviceStrings.ROUTE_FAST
+    RouteName.STANDARD -> DeviceStrings.ROUTE_STANDARD
+    RouteName.DEEP -> DeviceStrings.ROUTE_DEEP
+    RouteName.DEEP_PLUS -> DeviceStrings.ROUTE_DEEP_PLUS
+}
+
+/** The water word for a code: the band on slide codes, else the chip label, else null. */
+internal fun waterLabel(code: Int?): String? =
+    if (code != null && code in WaterFlow.codeFor(WaterFlow.MIN_LEVEL)..WaterFlow.codeFor(WaterFlow.MAX_LEVEL)) {
+        val level = WaterFlow.levelOf(code) ?: DEFAULT_WATER_FLOW_LEVEL
+        "${waterFlowBandLabel(WaterFlow.band(level))} $level"
+    } else {
+        WATER_OPTIONS.firstOrNull { it.first == code }?.second
+    }
 
 internal val ACTIVE_CLEANING_STATES = setOf(
     VacuumStateCodes.CLEANING, VacuumStateCodes.SEGMENT_CLEANING,

@@ -79,6 +79,14 @@ object DeviceStrings {
     const val ROUTE_DEEP = "Deep" // verified clean_efficiency_meticulous
     const val ROUTE_DEEP_PLUS = "Deep+" // verified mop_method_careful_slow
     const val ROUTE_FAST = "Fast" // verified clean_route_fast_mode_title
+    const val WATER_FLOW_SLIGHT = "Slight" // verified mode_setting_panel_custom_water_box_7
+    const val WATER_FLOW_LOW = "Low" // verified mode_setting_panel_custom_water_box_6
+    const val WATER_FLOW_GENTLE = "Gentle" // verified mode_setting_panel_custom_water_box_5
+    const val WATER_FLOW_MEDIUM = "Medium" // verified mode_setting_panel_custom_water_box_4
+    const val WATER_FLOW_MODERATE = "Moderate" // verified mode_setting_panel_custom_water_box_3
+    const val WATER_FLOW_HIGH = "High" // verified mode_setting_panel_custom_water_box_2
+    const val WATER_FLOW_EXTREME = "Extreme" // verified mode_setting_panel_custom_water_box_1
+    const val WATER_FLOW_WARNING = "Water marks & robot slipping" // verified super_water_mode_foot_tip
 
     // Start button.
     const val START_CLEAN = "Clean" // verified

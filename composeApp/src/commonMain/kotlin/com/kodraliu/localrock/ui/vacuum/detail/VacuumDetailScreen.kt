@@ -329,6 +329,8 @@ fun VacuumDetailScreen(
                     supportsSmartPlan = supportsSmartPlan,
                     cleanThenMop = capabilities.advertised.cleanThenMop,
                     pureMop = !capabilities.advertised.forbidPureMop,
+                    waterSlide = supportsWaterSlide,
+                    routeGates = capabilities.routes,
                     rooms = parsedMap?.rooms ?: emptyList(),
                     roomCleanModes = roomCleanModes,
                     roomModesLoaded = roomModesLoaded,
