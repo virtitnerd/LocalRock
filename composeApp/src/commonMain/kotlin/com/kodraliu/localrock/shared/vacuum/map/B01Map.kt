@@ -120,6 +120,10 @@ data class ParsedMap(
     val pathFlags: List<Int> = emptyList(),
     /** One byte per grid cell, 1 where the robot has seen carpet; null if the map has none. */
     val carpetMask: ByteArray? = null,
+    /** The cruise points of a Cruise run record (legacy block 37), in visiting order. */
+    val patrolPoints: List<PatrolPoint> = emptyList(),
+    /** The `task_id` that `get_patrol_photo` takes for [patrolPoints], from the same block. */
+    val patrolTaskId: Long? = null,
 ) {
     val floorCells: Int by lazy { grid.count { (it.toInt() and 0xff) == 128 } }
     val wallCells: Int by lazy { grid.count { (it.toInt() and 0xff) == 127 } }
@@ -139,6 +143,7 @@ data class ParsedMap(
             other.thresholds == thresholds &&
             other.pathFlags == pathFlags &&
             other.obstacles == obstacles &&
+            other.patrolPoints == patrolPoints && other.patrolTaskId == patrolTaskId &&
             (carpetMask?.contentEquals(other.carpetMask ?: ByteArray(0)) ?: (other.carpetMask == null))
 
     override fun hashCode(): Int {
@@ -261,6 +266,9 @@ data class ParsedMapRoom(
     /** The room type the robot keeps for this room (see RoomType); null for a room with no entry in its table. */
     val tag: Int? = null,
 )
+
+/** One cruise point: where the robot stopped (robot mm), its result code and the ids of the photos it took there. */
+data class PatrolPoint(val x: Int, val y: Int, val result: Int, val photoIds: List<String>)
 
 data class ParsedMapPoint(
     val x: Int,

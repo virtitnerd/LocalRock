@@ -109,6 +109,7 @@ import com.kodraliu.localrock.shared.vacuum.AdvertisedFeature
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.CleanSummary
+import com.kodraliu.localrock.shared.vacuum.PatrolThumbnail
 import com.kodraliu.localrock.shared.vacuum.ConsumableStatus
 import com.kodraliu.localrock.shared.vacuum.totalAreaLabel
 import com.kodraliu.localrock.shared.vacuum.finishReasonLabel
@@ -321,6 +322,7 @@ fun VacuumSettingsScreen(
                 records = cleanHistory,
                 summary = cleanSummary,
                 loadMap = { repository.fetchCleanRecordMap(it) },
+                loadThumbnails = { task, x, y -> repository.fetchPatrolThumbnails(task, x, y) },
                 mapRotation = mapRotation,
                 onRefresh = {
                     scope.launch {
@@ -383,6 +385,7 @@ fun VacuumHistoryScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         records = cleanHistory,
         summary = cleanSummary,
         loadMap = { repository.fetchCleanRecordMap(it) },
+        loadThumbnails = { task, x, y -> repository.fetchPatrolThumbnails(task, x, y) },
         mapRotation = mapRotation,
         onRefresh = {
             scope.launch {
@@ -954,6 +957,7 @@ private fun HistoryScreen(
     records: List<CleanRecord>,
     summary: CleanSummary?,
     loadMap: suspend (beginEpoch: Long) -> ParsedMap,
+    loadThumbnails: suspend (taskId: Long, x: Int, y: Int) -> List<PatrolThumbnail>,
     mapRotation: Int,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
@@ -987,7 +991,11 @@ private fun HistoryScreen(
     ) { padding ->
         CenteredContent {
             if (open != null) {
-                CleanRecordDetail(open, loadMap, mapRotation, Modifier.padding(padding))
+                if (open.isCruise) {
+                    CruiseRecordDetail(open, loadMap, loadThumbnails, mapRotation, Modifier.padding(padding))
+                } else {
+                    CleanRecordDetail(open, loadMap, mapRotation, Modifier.padding(padding))
+                }
             } else if (records.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(
@@ -1030,7 +1038,7 @@ private fun HistoryScreen(
                     }
                     items(shown, key = { it.beginEpoch }) { record ->
                         if (record.isCruise) {
-                            CruiseRecordRow(record)
+                            CruiseRecordRow(record, onClick = { selected = record })
                         } else {
                             CleanRecordRow(record, onClick = { selected = record })
                         }
@@ -1113,10 +1121,10 @@ private fun CleanRecordRow(record: CleanRecord, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CruiseRecordRow(record: CleanRecord) {
+private fun CruiseRecordRow(record: CleanRecord, onClick: () -> Unit) {
     val done = record.complete == 1
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
