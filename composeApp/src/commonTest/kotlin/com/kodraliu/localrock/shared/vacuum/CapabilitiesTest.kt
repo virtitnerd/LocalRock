@@ -40,6 +40,12 @@ class CapabilitiesTest {
     }
 
     @Test
+    fun only_the_curv_has_the_roller_mop() {
+        assertTrue(curv.advertised.rollerMop)
+        assertFalse(pro.advertised.rollerMop)
+    }
+
+    @Test
     fun cleaning_flags_follow_the_feature_bits() {
         assertTrue(curv.smartPlan)
         assertTrue(curv.waterSlide)

@@ -46,7 +46,7 @@ data class Capabilities(
     // Manage Maps (B3).
     val mapTools: Set<MapTool>,
     val mapBackup: Boolean,
-    // History, firmware (B4).
+    // History, firmware, maintenance (B4).
     val cruiseHistory: Boolean,
     val firmwareUpdates: Boolean,
     val autoFirmwareUpdates: Boolean,
@@ -78,6 +78,7 @@ fun buildCapabilities(
     val settings = buildSettingsCapabilities(featureSet, nfs)
     val device = devicePageFlags(nfs)
     val hasRoutineTab = device.routineTabKnown
+    val secondary = secondaryFlags(nfs, patrol)
     return Capabilities(
         mainTabs = listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE) + if (hasRoutineTab) listOf(MainTab.ROUTINE) else emptyList(),
         hasRoutineTab = hasRoutineTab,
@@ -109,9 +110,9 @@ fun buildCapabilities(
         dock = DockCapabilities(model, featureSet, nfs),
         mapTools = CurrentMapTools, // TODO(B3): official per-tool gates (Remove NFS 71, Floor Type RN 35, Furniture RN 36)
         mapBackup = false, // TODO(B3): isSupportBackupMap
-        cruiseHistory = patrol,
-        firmwareUpdates = true, // TODO(B4): isSupportFirmwareUpdate
-        autoFirmwareUpdates = bit(6),
+        cruiseHistory = secondary.cruiseHistory,
+        firmwareUpdates = secondary.firmwareUpdates,
+        autoFirmwareUpdates = secondary.autoFirmwareUpdates,
         betaFeatures = betaFeatures,
         unlistedFeatures = unlisted,
         showsBetaFeatures = betaFeatures.any { it.section == FeatureSection.BETA && it.bit != null } || unlisted.isNotEmpty(),

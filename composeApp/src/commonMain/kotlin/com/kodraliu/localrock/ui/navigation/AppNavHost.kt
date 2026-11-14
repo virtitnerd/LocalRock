@@ -49,6 +49,7 @@ import com.kodraliu.localrock.ui.vacuum.VacuumCarpetScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumDndScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumDockSettingsScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumFloorSettingsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceDetailScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMatterScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumObstacleSettingsScreen
@@ -180,9 +181,11 @@ fun AppNavHost() {
             vacuumComposable<VacuumSettings>(navController, container) {
                 VacuumSettingsScreen(viewModel = it, onBack = back, onNavigate = open)
             }
-            vacuumComposable<VacuumMaintenance>(navController, container) { VacuumMaintenanceScreen(viewModel = it, onBack = back) }
-            vacuumComposable<VacuumMaintenanceDetail>(navController, container) {
-                ComingSoonScreen(title = SettingsStrings.MAINTENANCE, onBack = back)
+            vacuumComposable<VacuumMaintenance>(navController, container) {
+                VacuumMaintenanceScreen(viewModel = it, onBack = back, onOpen = { name -> open(VacuumMaintenanceDetail(name)) })
+            }
+            vacuumComposable<VacuumMaintenanceDetail>(navController, container) { viewModel ->
+                VacuumMaintenanceDetailScreen(viewModel = viewModel, consumable = toRoute<VacuumMaintenanceDetail>().consumable, onBack = back)
             }
             vacuumComposable<VacuumSettingsDock>(navController, container) {
                 VacuumDockSettingsScreen(viewModel = it, onBack = back)

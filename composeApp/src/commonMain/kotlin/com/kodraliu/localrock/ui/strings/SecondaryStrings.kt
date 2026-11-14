@@ -106,6 +106,7 @@ object SecondaryStrings {
     const val DIRTY_WATER_TANK = "On-Board Dirty Water Tank" // verified
     const val DUSTBIN = "Dustbin" // verified
     const val TIMES_LEFT = "{n} time(s)" // inferred
+    const val HOURS_UNIT = "h" // inferred
     const val CONFIRM_MAIN_BRUSH = "Confirm if the main brush has been replaced." // verified
     const val CONFIRM_SIDE_BRUSH = "Confirm if side brush has been replaced." // verified
     const val CONFIRM_FILTER = "Confirm if filter has been replaced." // verified
