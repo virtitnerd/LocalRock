@@ -257,7 +257,8 @@ fun VacuumDetailScreen(
     val lastKnown by viewModel.lastKnown.collectAsState()
     val lastKnownMap by viewModel.lastKnownMap.collectAsState()
     // While the robot does not answer, its last map (with where it was last seen) stands in.
-    val parsedMap = liveMap ?: lastKnownMap
+    // A robot carried to its dock keeps its old map position until it re-localizes, so draw it at the charger.
+    val parsedMap = remember(liveMap, lastKnownMap, status.state) { (liveMap ?: lastKnownMap)?.withRobotOnDock(isDocked(status.state)) }
     val offlineLines = remember(lastKnown) {
         lastKnown?.let { lastKnownLines(it, Instant.fromEpochSeconds(currentEpochSeconds())) } ?: emptyList()
     }
