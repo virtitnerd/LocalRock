@@ -31,6 +31,15 @@ object SecondaryStrings {
     const val PET_FOUND_FAILED = "Pet found failed" // verified
     const val RECENT_CRUISE_TIP = "Only the most recent cruise and pet-finding record is saved." // verified
     const val SAVE_PICTURE = "Save Picture" // verified
+    const val CLEANING_ROUTE = "Cleaning Route" // verified
+    const val DIRT_MAP = "Dirt Map" // verified
+    const val DIRT_LEVEL = "Dirt Level" // verified
+    const val REPLAY = "Replay" // verified
+    const val PAUSE_PLAYBACK = "Pause playback" // verified
+    const val RESUME_PLAYBACK = "Resume playback" // verified
+    const val PLAYBACK_SPEED = "Double speed" // verified
+    const val END_PLAYBACK = "End" // verified
+    const val SPEED_PREFIX = "x" // verified
     const val LOAD_HISTORY = "Load history" // inferred
     const val MAP_FAILED = "Couldn't load this run's map" // inferred
     const val NO_TIMELINE = "No timeline for this run" // inferred

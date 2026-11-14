@@ -50,6 +50,7 @@ data class Capabilities(
     val cruiseHistory: Boolean,
     val firmwareUpdates: Boolean,
     val autoFirmwareUpdates: Boolean,
+    val dirtMap: Boolean,
     // Beta features page (B6): switches the robot reports, and the advertised bits with no control yet (ghost rows).
     val betaFeatures: List<BetaFeatureDef>,
     val unlistedFeatures: List<AdvertisedFeature>,
@@ -113,6 +114,7 @@ fun buildCapabilities(
         cruiseHistory = secondary.cruiseHistory,
         firmwareUpdates = secondary.firmwareUpdates,
         autoFirmwareUpdates = secondary.autoFirmwareUpdates,
+        dirtMap = secondary.dirtMap,
         betaFeatures = betaFeatures,
         unlistedFeatures = unlisted,
         showsBetaFeatures = betaFeatures.any { it.section == FeatureSection.BETA && it.bit != null } || unlisted.isNotEmpty(),

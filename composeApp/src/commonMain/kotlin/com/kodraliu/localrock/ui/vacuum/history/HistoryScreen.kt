@@ -75,6 +75,7 @@ import com.kodraliu.localrock.shared.vacuum.historyRowSubtitle
 import com.kodraliu.localrock.shared.vacuum.historyStamp
 import com.kodraliu.localrock.shared.vacuum.isCruise
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
+import com.kodraliu.localrock.shared.vacuum.map.ParsedMapRoom
 import com.kodraliu.localrock.shared.vacuum.timelineClock
 import com.kodraliu.localrock.shared.vacuum.totalAreaLabel
 import com.kodraliu.localrock.shared.vacuum.totalMinutes
@@ -102,11 +103,13 @@ fun VacuumHistoryScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         records = cleanHistory,
         summary = cleanSummary,
         cruiseTabSupported = capabilities.cruiseHistory,
+        dirtMapSupported = capabilities.dirtMap,
         loadMap = { repository.fetchCleanRecordMap(it) },
         loadThumbnails = { task, x, y -> repository.fetchPatrolThumbnails(task, x, y) },
         mapRotation = mapRotation,
         loadTimeline = repository::fetchCleanTimeline,
         roomName = { id -> rooms.firstOrNull { it.id == id }?.name },
+        knownRooms = rooms,
         onRefresh = {
             scope.launch {
                 runCatching { repository.fetchCleanHistory() }
@@ -130,6 +133,8 @@ internal fun HistoryScreen(
     roomName: (Int) -> String?,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
+    dirtMapSupported: Boolean = false,
+    knownRooms: List<ParsedMapRoom> = emptyList(),
 ) {
     var selected by remember { mutableStateOf<CleanRecord?>(null) }
     var cruiseTab by remember { mutableStateOf(false) }
@@ -173,7 +178,7 @@ internal fun HistoryScreen(
                 if (open.isCruise) {
                     CruiseRecordDetail(open, loadMap, loadThumbnails, mapRotation, Modifier.padding(padding))
                 } else {
-                    CleanRecordDetail(open, loadMap, loadTimeline, roomName, mapRotation, Modifier.padding(padding))
+                    CleanRecordDetail(open, loadMap, loadTimeline, roomName, knownRooms, mapRotation, dirtMapSupported, Modifier.padding(padding))
                 }
             } else {
                 LazyColumn(contentPadding = padding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -333,7 +338,9 @@ private fun CleanRecordDetail(
     loadMap: suspend (beginEpoch: Long) -> ParsedMap,
     loadTimeline: suspend (CleanRecord) -> List<CleanTimelineStep>?,
     roomName: (Int) -> String?,
+    knownRooms: List<ParsedMapRoom>,
     mapRotation: Int,
+    dirtMapSupported: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val done = record.complete == 1
@@ -342,6 +349,14 @@ private fun CleanRecordDetail(
     var expanded by remember(record.beginEpoch) { mutableStateOf(false) }
     var map by remember(record.beginEpoch) { mutableStateOf<ParsedMap?>(null) }
     var failed by remember(record.beginEpoch) { mutableStateOf(false) }
+    var dirtMode by remember(record.beginEpoch) { mutableStateOf(false) }
+    val dirt = remember(map) { map?.dirtLayer() }
+    val dirtToggle = showsDirtMapToggle(dirtMapSupported, dirt)
+    val playback = remember(record.beginEpoch) { PathPlayback() }
+    val viewport = remember(record.beginEpoch) { LiveMapViewport() }
+    val named = remember(map, knownRooms) { map?.withRoomNames(knownRooms) }
+    val routeless = remember(named) { named?.withoutRoute() }
+    map?.let { RunPlaybackClock(playback, it) }
     var steps by remember(record.beginEpoch) { mutableStateOf<List<CleanTimelineStep>?>(null) }
     var loadingSteps by remember(record.beginEpoch) { mutableStateOf(true) }
     LaunchedEffect(record.beginEpoch) {
@@ -360,17 +375,39 @@ private fun CleanRecordDetail(
             ) {
                 when {
                     // The live map's renderer, so the run map is as sharp as the device page instead of a stretched bitmap.
-                    map != null -> VacuumMapImage(
-                        map!!, emptyList(), onRoomTap = {}, onObstacleTap = {}, is3D = false,
-                        yawDegrees = mapRotation.toFloat(), onYawBy = {}, tiltDegrees = 0f, onTiltBy = {},
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                    )
+                    dirtToggle && dirtMode -> DirtMapImage(dirt!!, named!!, viewport, mapRotation, Modifier.fillMaxSize().padding(8.dp))
+                    map != null -> Box(Modifier.fillMaxSize()) {
+                        // While a replay runs, the route and robot come from the overlay as they move.
+                        VacuumMapImage(
+                            if (playback.active) routeless!! else named!!, emptyList(), onRoomTap = {}, onObstacleTap = {}, is3D = false,
+                            yawDegrees = mapRotation.toFloat(), onYawBy = {}, tiltDegrees = 0f, onTiltBy = {},
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            viewportScope = record.beginEpoch,
+                            providedMapViewport = viewport,
+                        )
+                        if (playback.active) {
+                            RunPlaybackOverlay(map!!, playback, viewport, mapRotation.toFloat(), Modifier.fillMaxSize().padding(8.dp))
+                        }
+                    }
                     failed -> Text(SecondaryStrings.MAP_FAILED, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                 }
             }
+            // Below the map, bottom right, as the official run page places the legend and the switch.
+            val replay = !playback.active && !(dirtToggle && dirtMode) && canPlayBack(map)
+            if (replay || dirtToggle) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (replay) ReplayButton(onClick = { playback.play() })
+                    if (dirtToggle) DirtMapSwitch(dirtMode, onToggle = { playback.stop(); dirtMode = !dirtMode })
+                }
+            }
         }
-        Surface(
+        if (playback.active) PlaybackBar(playback)
+        if (!playback.active) Surface(
             modifier = if (expanded) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shape = MaterialTheme.shapes.extraLarge,
