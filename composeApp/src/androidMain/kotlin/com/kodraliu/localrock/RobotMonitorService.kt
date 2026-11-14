@@ -48,8 +48,6 @@ class RobotMonitorService : Service() {
         RobotNotifications.ensureChannels(this)
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
         try {
-            // The service's own notification is also where a running clean is shown, so it is
-            // built from whatever is running at this moment rather than from fixed text.
             ServiceCompat.startForeground(
                 this,
                 RobotNotifications.WATCH_ID,
@@ -70,6 +68,7 @@ class RobotMonitorService : Service() {
     override fun onDestroy() {
         // From here on an update would bring the notification back with no service behind it.
         RobotNotifications.watchRunning = false
+        RobotNotifications.cancelProgress(this)
         scope.cancel()
         super.onDestroy()
     }

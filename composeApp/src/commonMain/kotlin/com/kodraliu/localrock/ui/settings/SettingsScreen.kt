@@ -260,11 +260,36 @@ private fun NotificationSettings() {
     SectionLabel("Notifications")
     SwitchRow(
         title = "Robot alerts",
-        description = "Tells you when a robot gets stuck, finishes cleaning, or its dock needs attention.",
+        description = if (backgroundAlertsSupported) {
+            "Tells you when a robot gets stuck, finishes cleaning, or its dock needs attention. " +
+                "Turn on Keep watching in the background to get them while the app is closed."
+        } else {
+            "Tells you when a robot gets stuck, finishes cleaning, or its dock needs attention, " +
+                "while LocalRock is open."
+        },
         checked = enabled,
         onCheckedChange = { on -> if (on) requestPermission() else settings.setNotifyEnabled(false) },
     )
     if (!enabled) return
+    // The watch comes first: every alert below depends on it once the app is closed.
+    if (backgroundAlertsSupported) {
+        SwitchRow(
+            title = "Keep watching in the background",
+            description = "Required for alerts while LocalRock is closed. Keeps the connection to your " +
+                "server open. Android requires a notification while this is on; to hide it, turn off " +
+                "the Background connection category in Android's notification settings for LocalRock.",
+            checked = background,
+            onCheckedChange = settings::setNotifyBackground,
+        )
+        if (!background) {
+            Text(
+                "Off: alerts only appear while LocalRock is open on screen. Once you leave the app, " +
+                    "none of the alerts below will reach you.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
     SwitchRow("Errors and stuck robot", null, errors, settings::setNotifyErrors)
     SwitchRow("Cleaning finished", null, finished, settings::setNotifyFinished)
     SwitchRow(
@@ -273,24 +298,15 @@ private fun NotificationSettings() {
         checked = dock,
         onCheckedChange = settings::setNotifyDock,
     )
-    if (backgroundAlertsSupported) {
+    // Progress needs the background watch: without it nothing keeps the notification moving.
+    if (backgroundAlertsSupported && background) {
         SwitchRow(
-            title = "Keep watching in the background",
-            description = "Keeps the connection to your server open so alerts arrive while the app is " +
-                "closed. Android shows one permanent notification while this is on.",
-            checked = background,
-            onCheckedChange = settings::setNotifyBackground,
+            title = "Show cleaning progress",
+            description = "While a clean runs, the background notification shows what the " +
+                "robot is doing, which room it is in, and how far along it is.",
+            checked = progress,
+            onCheckedChange = settings::setNotifyProgress,
         )
-        // Progress needs the background watch: without it nothing keeps the notification moving.
-        if (background) {
-            SwitchRow(
-                title = "Show cleaning progress",
-                description = "While a clean runs, the background notification shows what the " +
-                    "robot is doing, which room it is in, and how far along it is.",
-                checked = progress,
-                onCheckedChange = settings::setNotifyProgress,
-            )
-        }
     }
     Text(
         if (backgroundAlertsSupported) {
