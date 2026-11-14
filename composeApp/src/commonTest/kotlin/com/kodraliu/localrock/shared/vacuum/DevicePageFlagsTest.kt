@@ -19,7 +19,7 @@ class DevicePageFlagsTest {
         assertTrue(flags.cleanThenMopRepeat)
         assertTrue(flags.forbidPureMop)
         assertTrue(flags.midwayDock)
-        assertFalse(devicePageFlags(CURV).routineTabKnown)
+        assertTrue(devicePageFlags(CURV).routineTabKnown)
     }
 
     @Test
@@ -53,8 +53,19 @@ class DevicePageFlagsTest {
     }
 
     @Test
-    fun routine_tab_shows_once_routines_exist() {
-        val caps = buildCapabilities(null, null, null, PRO)
+    fun routine_tab_follows_the_dynamic_zone_bits() {
+        val all = listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE, MainTab.ROUTINE)
+        // Both test robots set bits 25 and 26 (low word 0x7E......).
+        assertEquals(all, visibleMainTabs(buildCapabilities(null, null, null, PRO), 0))
+        assertEquals(all, visibleMainTabs(buildCapabilities(null, null, null, CURV), 0))
+        // Bit 26 alone (0x04000000) is not enough.
+        assertFalse(devicePageFlags("04000000").routineTabKnown)
+        assertTrue(devicePageFlags("06000000").routineTabKnown)
+    }
+
+    @Test
+    fun routine_tab_still_shows_without_feature_bits_once_routines_exist() {
+        val caps = buildCapabilities(null, null, null, null)
         assertEquals(listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE), visibleMainTabs(caps, 0))
         assertEquals(listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE, MainTab.ROUTINE), visibleMainTabs(caps, 2))
     }
