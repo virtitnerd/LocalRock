@@ -270,6 +270,12 @@ suspend fun VacuumSession.startCameraPreview(clientIdHex: String, passwordMd5Hex
 suspend fun VacuumSession.switchVideoQuality(quality: String): V1Response =
     sendCommandRaw("switch_video_quality", JsonObject(mapOf("quality" to JsonPrimitive(quality))))
 
+/** Opens the robot's audio for a call: [play] its speaker, [record] its microphone. */
+suspend fun VacuumSession.startVoiceChat(play: Boolean, record: Boolean): V1Response =
+    sendCommandRaw("start_voice_chat", JsonObject(mapOf("play" to JsonPrimitive(play), "record" to JsonPrimitive(record))))
+
+suspend fun VacuumSession.stopVoiceChat(): V1Response = sendCommand("stop_voice_chat")
+
 suspend fun VacuumSession.stopCameraPreview(clientIdHex: String): V1Response =
     sendCommandRaw("stop_camera_preview", JsonObject(mapOf("client_id" to JsonPrimitive(clientIdHex))))
 

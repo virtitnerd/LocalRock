@@ -1,6 +1,8 @@
 package com.kodraliu.localrock.shared.webrtc
 
 import com.kodraliu.localrock.shared.protocol.appContextOrNull
+import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +14,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.webrtc.AudioSource
+import org.webrtc.AudioTrack
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
 import org.webrtc.DefaultVideoEncoderFactory
@@ -67,6 +71,54 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     override val stats: StateFlow<RtcStats?> = _stats
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private var audioTransceiver: RtpTransceiver? = null
+    private var micSource: AudioSource? = null
+    private var micTrack: AudioTrack? = null
+    private var remoteAudio: AudioTrack? = null
+    private var speakerWanted = true
+
+    private val audioManager = appContextOrNull()?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var savedMode: Int? = null
+    private var savedSpeaker: Boolean? = null
+
+    // A call is played through the loudspeaker, not the earpiece; put the phone's audio back afterwards.
+    private fun routeToSpeaker(on: Boolean) {
+        val am = audioManager ?: return
+        if (on) {
+            if (savedMode == null) {
+                savedMode = am.mode
+                savedSpeaker = am.isSpeakerphoneOn
+            }
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            am.isSpeakerphoneOn = true
+        } else {
+            savedMode?.let { am.mode = it }
+            savedSpeaker?.let { am.isSpeakerphoneOn = it }
+            savedMode = null
+            savedSpeaker = null
+        }
+    }
+
+    override fun setMicEnabled(enabled: Boolean) {
+        val transceiver = audioTransceiver ?: return
+        if (enabled) {
+            if (micTrack == null) {
+                val source = peerConnectionFactory.createAudioSource(MediaConstraints())
+                micSource = source
+                micTrack = peerConnectionFactory.createAudioTrack("mic", source)
+                transceiver.sender.setTrack(micTrack, false)
+            }
+            micTrack?.setEnabled(true)
+        } else {
+            micTrack?.setEnabled(false)
+        }
+    }
+
+    override fun setSpeakerEnabled(enabled: Boolean) {
+        speakerWanted = enabled
+        remoteAudio?.setEnabled(enabled)
+    }
+
     private val pc: PeerConnection
 
     init {
@@ -113,6 +165,14 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
             fps = num(video, "framesPerSecond")?.toInt(),
             bufferMs = buffer?.toInt(),
         )
+        val audioIn = all.values.firstOrNull { it.type == "inbound-rtp" && (str(it, "kind") ?: str(it, "mediaType")) == "audio" }
+        val audioOut = all.values.firstOrNull { it.type == "outbound-rtp" && (str(it, "kind") ?: str(it, "mediaType")) == "audio" }
+        Log.i(
+            "RtcAudio",
+            "in pkts=${num(audioIn, "packetsReceived")?.toLong()} bytes=${num(audioIn, "bytesReceived")?.toLong()} " +
+                "level=${num(audioIn, "audioLevel")} codec=${str(audioIn, "codecId")} | " +
+                "out pkts=${num(audioOut, "packetsSent")?.toLong()} bytes=${num(audioOut, "bytesSent")?.toLong()} mic=${micTrack?.enabled()}",
+        )
         Log.i("RtcStats", "$snapshot local=${str(local, "candidateType")} remote=${str(remote, "candidateType")}")
         _stats.value = snapshot
     }
@@ -120,7 +180,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     override suspend fun createOffer(): String {
         // The robot only answers the official app's offer: audio first and sendrecv (a transceiver without a
         // track is enough), then receive-only video. The codecs are trimmed below.
-        pc.addTransceiver(
+        audioTransceiver = pc.addTransceiver(
             MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
             RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_RECV),
         )
@@ -147,6 +207,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     }
 
     override suspend fun setRemoteAnswer(sdp: String) {
+        Log.i("RtcAudio", "answer audio section: " + sdp.split(Regex("\r?\n")).dropWhile { !it.startsWith("m=audio") }.takeWhile { !it.startsWith("m=video") }.filter { it.startsWith("m=") || it.startsWith("a=send") || it.startsWith("a=recv") || it.startsWith("a=inactive") || it.startsWith("a=rtpmap") || it.startsWith("a=ssrc") || it.startsWith("a=msid") }.joinToString(" ; "))
         suspendCoroutine<Unit> { cont ->
             pc.setRemoteDescription(object : SdpObserverAdapter() {
                 override fun onSetSuccess() = cont.resume(Unit)
@@ -162,10 +223,14 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
 
     override fun close() {
         scope.cancel()
+        routeToSpeaker(false)
+        micTrack?.setEnabled(false)
         videoTrack.value = null
         _connectionState.value = RtcConnectionState.CLOSED
         runCatching { pc.close() }
         runCatching { pc.dispose() }
+        runCatching { micTrack?.dispose() }
+        runCatching { micSource?.dispose() }
     }
 
     private inner class Observer : PeerConnection.Observer {
@@ -177,6 +242,10 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
 
         override fun onTrack(transceiver: RtpTransceiver) {
             (transceiver.receiver.track() as? VideoTrack)?.let { videoTrack.value = it }
+            (transceiver.receiver.track() as? AudioTrack)?.let {
+                remoteAudio = it
+                it.setEnabled(speakerWanted)
+            }
         }
 
         override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {
@@ -189,7 +258,10 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
             _connectionState.value = when (newState) {
                 PeerConnection.PeerConnectionState.NEW -> RtcConnectionState.NEW
                 PeerConnection.PeerConnectionState.CONNECTING -> RtcConnectionState.CONNECTING
-                PeerConnection.PeerConnectionState.CONNECTED -> RtcConnectionState.CONNECTED
+                PeerConnection.PeerConnectionState.CONNECTED -> {
+                    routeToSpeaker(true)
+                    RtcConnectionState.CONNECTED
+                }
                 PeerConnection.PeerConnectionState.DISCONNECTED -> RtcConnectionState.DISCONNECTED
                 PeerConnection.PeerConnectionState.FAILED -> RtcConnectionState.FAILED
                 PeerConnection.PeerConnectionState.CLOSED -> RtcConnectionState.CLOSED

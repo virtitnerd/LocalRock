@@ -34,6 +34,12 @@ interface RtcPeer {
     val connectionState: StateFlow<RtcConnectionState>
     val stats: StateFlow<RtcStats?> get() = MutableStateFlow(null)
 
+    /** Talk to the robot through the phone's microphone. */
+    fun setMicEnabled(enabled: Boolean) {}
+
+    /** Hear the robot's microphone. */
+    fun setSpeakerEnabled(enabled: Boolean) {}
+
     suspend fun createOffer(): String
     suspend fun setRemoteAnswer(sdp: String)
     fun addRemoteCandidate(candidate: RtcIceCandidate)
