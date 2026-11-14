@@ -60,6 +60,7 @@ object DeviceStrings {
     const val TIP_CUSTOMIZE = "The robot cleans each room based on the cleaning mode settings." // verified custom_mode_panel_has_custom_data_tip
     const val ROOM_MODES_LOADING = "Reading the room settings from the robot." // inferred
     const val ROOM_MODES_FAILED = "Couldn't read the room settings from the robot. Close this sheet and open it again." // inferred
+    const val LOADING_MAP = "Loading map…" // inferred
     const val ROOM_MODES_NO_MAP = "Load the map to set up each room." // inferred
     const val SAVE_ROOM_MODES = "Save room settings" // inferred
     const val ROOM_MODES_SAVED = "Room settings saved" // inferred

@@ -1,5 +1,6 @@
 package com.kodraliu.localrock.ui.vacuum
 
+import com.kodraliu.localrock.ui.strings.DeviceStrings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -84,6 +85,7 @@ internal fun MapHeroSection(
     offlineLines: List<String>,
     busy: Boolean,
     selectedRoomIds: List<Int>,
+    mapLoading: Boolean = false,
     sessionRoomNames: List<String>,
     floorMaps: List<FloorMap>,
     currentFloorFlag: Int,
@@ -132,7 +134,8 @@ internal fun MapHeroSection(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            MapEmptyState(busy = busy, onLoadMap = onLoadMap, onRecover = onRecover, modifier = Modifier.fillMaxSize())
+            if (mapLoading) MapLoadingState(Modifier.fillMaxSize())
+            else MapEmptyState(busy = busy, onLoadMap = onLoadMap, onRecover = onRecover, modifier = Modifier.fillMaxSize())
         }
 
         // Refresh and Edit map are the only controls on top of the map; camera, remote and map
@@ -557,17 +560,27 @@ internal fun VacuumMapImage(
 }
 
 @Composable
+private fun MapLoadingState(modifier: Modifier = Modifier) {
+    Column(modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        CircularProgressIndicator(color = Color.White)
+        Spacer(Modifier.height(16.dp))
+        Text(DeviceStrings.LOADING_MAP, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+    }
+}
+
+@Composable
 private fun MapEmptyState(busy: Boolean, onLoadMap: () -> Unit, onRecover: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Default.Map, null, Modifier.size(48.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+        // The map area is black in both themes, so this text is light rather than the theme colour.
+        Icon(Icons.Default.Map, null, Modifier.size(48.dp), Color.White.copy(alpha = 0.7f))
         Spacer(Modifier.height(16.dp))
-        Text("No map loaded", style = MaterialTheme.typography.titleMedium)
+        Text("No map loaded", style = MaterialTheme.typography.titleMedium, color = Color.White)
         Spacer(Modifier.height(4.dp))
-        Text("Load the latest map from your robot.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Load the latest map from your robot.", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
         Spacer(Modifier.height(20.dp))
         Button(onClick = onLoadMap, enabled = !busy) {
             Icon(Icons.Default.Refresh, null)

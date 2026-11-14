@@ -89,6 +89,9 @@ class VacuumRepository(
     val mapBytes: StateFlow<ByteArray?> = _mapBytes
 
     private val _parsedMap = MutableStateFlow<ParsedMap?>(null)
+    // True until the first map request after opening has finished, so the screen can say "loading" rather than "no map".
+    private val _firstMapPending = MutableStateFlow(true)
+    val firstMapPending: StateFlow<Boolean> = _firstMapPending
     val parsedMap: StateFlow<ParsedMap?> = _parsedMap
 
     private val _mapStatus = MutableStateFlow("idle")
@@ -259,6 +262,8 @@ class VacuumRepository(
                 delay(pollIntervalMs)
             }
         }
+        // An unreachable robot must not leave the screen on "loading" forever.
+        scope.launch { delay(20_000); _firstMapPending.value = false }
         mapPollJob = scope.launch {
             var loaded = false
             while (isActive) {
@@ -266,6 +271,7 @@ class VacuumRepository(
                 runCatching { fetchMap() }
                     .onSuccess { loaded = true }
                     .onFailure { println("[VacLocal] fetchMap FAILED: ${it::class.simpleName}: ${it.message}") }
+                _firstMapPending.value = false
                 // Until a map has arrived, ask again soon: sitting out the idle minute after a
                 // failed first request left the screen without a map for up to two minutes.
                 waitForNextMapPoll(

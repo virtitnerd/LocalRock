@@ -49,6 +49,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -274,9 +276,10 @@ class VacuumViewModel(
                 runCatching { repository.rooms() }
                 runCatching { repository.fetchRobotFeatureSet() }
             }
-            // Preload every settings page now so a page opens complete instead of filling in.
+            // Preload every settings page so a page opens complete; the map goes first (up to 8 s) so it is not slowed.
             launch {
                 container.awaitMqttConnected()
+                withTimeoutOrNull(8_000) { repository.parsedMap.first { it != null } }
                 launch { runCatching { repository.fetchBetaFeatures(betaFeatureDefs) } }
                 launch { runCatching { repository.fetchRobotSettings() } }
                 launch { runCatching { repository.fetchDockSettings() } }

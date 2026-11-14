@@ -103,6 +103,7 @@ fun VacuumDetailScreen(
     val supportsSmartPlan by viewModel.supportsSmartPlan.collectAsState()
     val supportsWaterSlide by viewModel.supportsWaterSlide.collectAsState()
     val liveMap by viewModel.repository.parsedMap.collectAsState()
+    val firstMapPending by viewModel.repository.firstMapPending.collectAsState()
     val lastKnown by viewModel.lastKnown.collectAsState()
     val lastKnownMap by viewModel.lastKnownMap.collectAsState()
     // While the robot does not answer, its last map (with where it was last seen) stands in.
@@ -479,6 +480,7 @@ fun VacuumDetailScreen(
                 parsedMap = parsedMap,
                 offlineLines = offlineLines,
                 busy = busy,
+                mapLoading = parsedMap == null && firstMapPending,
                 selectedRoomIds = selectedRoomIds,
                 sessionRoomNames = sessionRoomNames,
                 floorMaps = floorMaps,
