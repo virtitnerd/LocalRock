@@ -65,7 +65,7 @@ fun VacuumProductInfoScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
                 }
             }
         }
-        item { GroupCaption(SettingsStrings.LOCALROCK_CAPTION, BonusKind.LocalRock) }
+        item { GroupCaption(SettingsStrings.SERVER_CONNECTION_CAPTION, BonusKind.LocalRock) }
         item {
             SettingGroup {
                 SettingRowInfo(Icons.Default.Dns, AppColors.Good, SettingsStrings.SERVER, serverUrl ?: SettingsStrings.UNKNOWN)

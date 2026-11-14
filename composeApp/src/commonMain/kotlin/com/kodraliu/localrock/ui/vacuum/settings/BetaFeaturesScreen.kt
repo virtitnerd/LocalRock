@@ -99,12 +99,6 @@ internal fun BetaFeaturesScreen(
                             checked = f.enabled,
                             onCheckedChange = { onToggle(f.def.id, it) },
                         )
-                        Text(
-                            "Robot reply: ${f.raw}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 76.dp, end = 16.dp, bottom = 10.dp),
-                        )
                         HorizontalDivider(Modifier.padding(start = 72.dp))
                     }
                 }

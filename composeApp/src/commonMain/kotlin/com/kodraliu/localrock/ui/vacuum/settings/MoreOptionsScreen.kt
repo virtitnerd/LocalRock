@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.components.BonusKind
 import com.kodraliu.localrock.ui.components.SettingGroup
+import com.kodraliu.localrock.ui.components.SettingAmber
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
 import com.kodraliu.localrock.ui.components.SettingsCategoryRow
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsChargingMode
@@ -80,7 +81,7 @@ fun VacuumMoreOptionsScreen(viewModel: VacuumViewModel, onBack: () -> Unit, onNa
             SettingGroup {
                 // set_led_status is the plugin's Button Lights; Status Indicator Light is get/set_flow_led_status, which neither test robot knows.
                 SettingRowSwitch(
-                    icon = Icons.Default.Lightbulb, iconTint = AppColors.AccentYellow,
+                    icon = Icons.Default.Lightbulb, iconTint = SettingAmber,
                     title = SettingsStrings.BUTTON_LIGHTS, subtitle = SettingsStrings.BUTTON_LIGHTS_DETAIL,
                     checked = robotSettings.ledEnabled,
                     onCheckedChange = { on -> viewModel.report { it.setLed(on) } },

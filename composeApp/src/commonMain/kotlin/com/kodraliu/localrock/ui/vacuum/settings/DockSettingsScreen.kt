@@ -5,7 +5,9 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.Plumbing
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,10 +77,10 @@ internal fun DockSettingsScreen(
     SettingsPage(title = SettingsStrings.DOCK, onBack = onBack) {
         item {
             SettingGroup {
-                SettingRowClickable(Icons.Default.WaterDrop, AppColors.Water, SettingsStrings.MOP_WASH_FREQUENCY,
+                SettingRowClickable(Icons.Default.Repeat, AppColors.Water, SettingsStrings.MOP_WASH_FREQUENCY,
                     washFrequencyLabel(smartWash), enabled = washFrequencyEnabled) { dialogTarget = "wash_freq" }
                 RowDivider()
-                SettingRowClickable(Icons.Default.WaterDrop, AppColors.AccentCyan, SettingsStrings.WASHING_MODE,
+                SettingRowClickable(Icons.Default.LocalLaundryService, AppColors.AccentCyan, SettingsStrings.WASHING_MODE,
                     dockCapabilities.washModeLabel(dockSettings.washMode, dockType), enabled = washModeEnabled) { dialogTarget = "wash_mode" }
                 dockSettings.washWaterTemperature?.let { temperature ->
                     RowDivider()
@@ -120,7 +122,7 @@ internal fun DockSettingsScreen(
         item { GroupCaption(SettingsStrings.DOCK_MAINTENANCE) }
         item {
             SettingGroup {
-                SettingRowClickable(Icons.Default.WaterDrop, AppColors.Water, SettingsStrings.DRAIN_ONBOARD_TANK,
+                SettingRowClickable(Icons.Default.Plumbing, AppColors.Water, SettingsStrings.DRAIN_ONBOARD_TANK,
                     SettingsStrings.DRAIN_ONBOARD_TANK_DETAIL, enabled = !busy) { confirmEmptyTank = true }
                 rows(DockGroup.MAINTENANCE).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle, onFeatureChoice) }
             }

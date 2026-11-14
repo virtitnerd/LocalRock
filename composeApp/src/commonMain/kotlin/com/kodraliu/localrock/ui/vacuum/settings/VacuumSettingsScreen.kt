@@ -40,6 +40,7 @@ import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.inSection
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.components.SettingGroup
+import com.kodraliu.localrock.ui.components.SettingAmber
 import com.kodraliu.localrock.ui.components.SettingsCategoryRow
 import com.kodraliu.localrock.ui.navigation.VacuumFirmware
 import com.kodraliu.localrock.ui.navigation.VacuumHistory
@@ -114,7 +115,7 @@ fun VacuumSettingsScreen(
                 .takeIf { floorRows },
             RootRow(Icons.Default.Home, AppColors.Water, SettingsStrings.DOCK, SettingsStrings.DOCK_DETAIL, VacuumSettingsDock)
                 .takeIf { caps.hasDockSettings },
-            RootRow(Icons.Default.Sensors, AppColors.AccentYellow, SettingsStrings.OBSTACLE, SettingsStrings.OBSTACLE_DETAIL, VacuumSettingsObstacle)
+            RootRow(Icons.Default.Sensors, SettingAmber, SettingsStrings.OBSTACLE, SettingsStrings.OBSTACLE_DETAIL, VacuumSettingsObstacle)
                 .takeIf { caps.hasObstacleSettings || obstacleRows },
         )
         if (cleaningRows.isNotEmpty()) {

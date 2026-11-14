@@ -73,7 +73,7 @@ object SettingsStrings {
     const val ADJUSTED_BATTERY_LEVEL_DETAIL = "The battery level will be calculated more accurately. Runtime may be slightly reduced to accommodate this adjustment." // verified
     const val FIND_ROBOT_RINGING = "The robot is playing a sound" // inferred
     const val MORE_ROBOT_OPTIONS = "Other options your robot reports" // inferred
-    const val LOCALROCK_CAPTION = "LocalRock" // inferred
+    const val SERVER_CONNECTION_CAPTION = "Server connection" // inferred
 
     // Charging Mode page.
     const val SMART_CHARGING_DETAIL = "During charging, the robot will typically charge to 80% before slowly trickle charging to 100% to optimize battery performance." // verified
@@ -144,7 +144,7 @@ object SettingsStrings {
     const val DRYING_START_METHOD = "Drying Start Method" // verified
     const val DRYING_DURATION = "Duration" // verified
     const val UVC_STERILIZATION = "UVC Sterilization" // verified
-    const val DOCK_MAINTENANCE = "Dock Maintanence" // verified
+    const val DOCK_MAINTENANCE = "Dock Maintenance" // verified (official spells it Maintanence)
     const val FILL_AND_DRAIN = "Fill&Drain Settings" // verified
     const val DRAIN_ONBOARD_TANK = "Drain On-Board Water Tank" // verified
     const val DRAIN_ONBOARD_TANK_DETAIL = "Empty through the dock" // inferred

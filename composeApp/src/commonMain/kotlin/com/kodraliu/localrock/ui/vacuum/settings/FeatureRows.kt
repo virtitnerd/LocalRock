@@ -17,16 +17,17 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.BorderOuter
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Grass
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Route
@@ -82,8 +83,9 @@ private fun featureIcon(id: String): ImageVector? = when (id) {
     "avoid_collision", "less_collision_mode" -> Icons.Default.Shield
     "pet_snapshot" -> Icons.Default.PhotoCamera
     "follow_low_obstacles" -> Icons.Default.Height
+    "identify_room" -> Icons.Default.MeetingRoom
     "clean_fluid_delivery" -> Icons.Default.Science
-    "drying_start_method" -> Icons.Default.Air
+    "drying_start_method" -> Icons.Default.PlayCircle
     "water_leak_check" -> Icons.Default.WaterDamage
     "voice_control_led", "voice_assistant", "full_duplex" -> Icons.Default.RecordVoiceOver
     else -> null

@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import kotlin.math.pow
 
 /** Padding of one settings row inside a list. */
 val SettingRowPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
@@ -30,9 +31,44 @@ val SettingRowPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
 /** The tinted rounded square that leads every settings row. */
 @Composable
 fun SettingIconTile(icon: ImageVector, tint: Color) {
-    Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
-        Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), tint) }
+    val iconColor = legibleIconTint(tint, MaterialTheme.colorScheme.surfaceContainer)
+    Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = TILE_ALPHA), modifier = Modifier.size(44.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), iconColor) }
     }
+}
+
+/** Dark amber for yellow icons; passes 3:1 against its own tile in light and dark mode. */
+val SettingAmber = Color(0xFFB26A00)
+
+private const val TILE_ALPHA = 0.12f
+
+/** WCAG relative luminance of an sRGB color. */
+internal fun relativeLuminance(c: Color): Double {
+    fun lin(v: Float): Double = if (v <= 0.03928f) v / 12.92 else ((v + 0.055) / 1.055).pow(2.4)
+    return 0.2126 * lin(c.red) + 0.7152 * lin(c.green) + 0.0722 * lin(c.blue)
+}
+
+internal fun contrastRatio(a: Color, b: Color): Double {
+    val la = relativeLuminance(a)
+    val lb = relativeLuminance(b)
+    return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+}
+
+private fun mix(a: Color, b: Color, f: Float) = Color(
+    red = a.red + (b.red - a.red) * f, green = a.green + (b.green - a.green) * f, blue = a.blue + (b.blue - a.blue) * f,
+)
+
+/** [tint], darkened on a light group or lightened on a dark one until it reaches 3:1 (WCAG graphical object) against its tile. */
+internal fun legibleIconTint(tint: Color, groupBackground: Color, minRatio: Double = 3.0): Color {
+    val tile = mix(groupBackground, tint, TILE_ALPHA)
+    val toward = if (relativeLuminance(groupBackground) > 0.18) Color.Black else Color.White
+    var step = 0
+    var icon = tint
+    while (contrastRatio(icon, tile) < minRatio && step < 20) {
+        step++
+        icon = mix(tint, toward, step * 0.05f)
+    }
+    return icon
 }
 
 /** A row that opens a page: icon, title, subtitle and a chevron. */
