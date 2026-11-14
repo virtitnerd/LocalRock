@@ -32,10 +32,16 @@ class DevicePageFlagsTest {
     }
 
     @Test
-    fun clean_then_mop_needs_bit_114_as_well_as_93() {
+    fun clean_then_mop_needs_bit_114_only_on_fcc_robots() {
         // Bit 93 alone: hex digit 23 from the end, value 2.
         val only93 = "2" + "0".repeat(23)
-        assertFalse(buildAdvertisedCapabilities(only93).cleanThenMop)
+        assertFalse(buildAdvertisedCapabilities(only93, fcc = true).cleanThenMop)
+        assertFalse(buildAdvertisedCapabilities(only93, fcc = null).cleanThenMop)
+        assertTrue(buildAdvertisedCapabilities(only93, fcc = false).cleanThenMop)
+        // Both test robots report featureset 1; the Curv has 93 and 114, the Pro neither.
+        assertTrue(buildAdvertisedCapabilities(CURV, fcc = true).cleanThenMop)
+        assertFalse(buildAdvertisedCapabilities(PRO, fcc = false).cleanThenMop)
+        assertTrue(buildCapabilities(null, null, null, only93, robotIsFcc = false).advertised.cleanThenMop)
     }
 
     @Test

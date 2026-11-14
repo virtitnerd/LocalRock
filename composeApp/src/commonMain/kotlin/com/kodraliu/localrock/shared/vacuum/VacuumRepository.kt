@@ -129,9 +129,16 @@ class VacuumRepository(
     /** The feature flags the robot reports itself; null until it has answered. */
     val robotFeatureSet: StateFlow<String?> = _robotFeatureSet
 
+    private val _robotIsFcc = MutableStateFlow<Boolean?>(null)
+
+    /** local_info.featureset bit 0 from app_get_init_status (FCC build); null until the robot has answered. */
+    val robotIsFcc: StateFlow<Boolean?> = _robotIsFcc
+
     suspend fun fetchRobotFeatureSet() {
         if (_robotFeatureSet.value != null) return
-        _robotFeatureSet.value = featureSetFromInitStatus(session.getInitStatus().requireOk("app_get_init_status").result)
+        val result = session.getInitStatus().requireOk("app_get_init_status").result
+        _robotIsFcc.value = usesServerTimer(result)
+        _robotFeatureSet.value = featureSetFromInitStatus(result)
     }
 
     private val _dockSettings = MutableStateFlow(DockSettings())

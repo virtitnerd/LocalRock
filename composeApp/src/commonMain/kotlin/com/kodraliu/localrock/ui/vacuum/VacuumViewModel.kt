@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -90,9 +91,9 @@ class VacuumViewModel(
         .map { isWaterSlideSupported(it ?: serverFeatureSet) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, isWaterSlideSupported(serverFeatureSet))
     // The redesign's single source of what this robot supports; the flags above stay until screens move over.
-    val capabilities: StateFlow<Capabilities> = repository.robotFeatureSet
-        .map { buildCapabilities(modelName, device.featureSet, serverFeatureSet, it) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, buildCapabilities(modelName, device.featureSet, serverFeatureSet, null))
+    val capabilities: StateFlow<Capabilities> = combine(repository.robotFeatureSet, repository.robotIsFcc) { nfs, fcc ->
+        buildCapabilities(modelName, device.featureSet, serverFeatureSet, nfs, fcc)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, buildCapabilities(modelName, device.featureSet, serverFeatureSet, null))
     val status = repository.status
 
     private val errorBannerKey = "robot-error-${device.duid}"

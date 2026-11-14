@@ -66,6 +66,7 @@ fun buildCapabilities(
     featureSet: String?,
     serverFeatureSet: String?,
     robotFeatureSet: String?,
+    robotIsFcc: Boolean? = null,
 ): Capabilities {
     val nfs = robotFeatureSet ?: serverFeatureSet
     fun bit(n: Int) = newFeatureBit(nfs, n)
@@ -112,6 +113,6 @@ fun buildCapabilities(
         betaFeatures = betaFeatures,
         unlistedFeatures = unlisted,
         showsBetaFeatures = betaFeatures.any { it.section == FeatureSection.BETA && it.bit != null } || unlisted.isNotEmpty(),
-        advertised = buildAdvertisedCapabilities(nfs),
+        advertised = buildAdvertisedCapabilities(nfs, robotIsFcc),
     )
 }
