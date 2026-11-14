@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.TextMeasurer
 import com.kodraliu.localrock.shared.vacuum.map.MapZone
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapPoint
@@ -487,16 +488,26 @@ private inline fun upright(canvas: Canvas, map: ParsedMap, point: ParsedMapPoint
  * The route and the two markers, drawn straight to the screen through the map's transform instead of
  * into a bitmap, so they stay sharp at any zoom. [scale] is how many layer pixels make one cell.
  */
-internal fun DrawScope.drawRouteAndMarkers(map: ParsedMap, view: MapView, scale: Int, dark: Boolean, faintRoute: Boolean = false) {
+internal fun DrawScope.drawRouteAndMarkers(
+    map: ParsedMap,
+    view: MapView,
+    scale: Int,
+    dark: Boolean,
+    faintRoute: Boolean = false,
+    route: Boolean = true,
+    pinLabels: TextMeasurer? = null,
+) {
     val palette = if (dark) DarkPalette else LightPalette
     withTransform({
         // The same matrix as the floor, so the route lies on the rooms it ran over at any heading and tilt.
         transform(view.layerMatrix(0f))
         scale(scale.toFloat(), scale.toFloat(), Offset.Zero)
     }) {
-        if (map.pathMm.size >= 2) drawPath(drawContext.canvas, map, palette, faint = faintRoute)
+        if (route && map.pathMm.size >= 2) drawPath(drawContext.canvas, map, palette, faint = faintRoute)
         drawMarkers(drawContext.canvas, map, palette, view.yawDegrees, view.squash)
     }
+    // Numbered cruise pins stay upright and a constant size, so they are drawn in screen space.
+    drawCruisePins(map, pinLabels) { cell -> view.toScreen(cell.x * scale, cell.y * scale) }
 }
 
 private fun drawZone(canvas: Canvas, map: ParsedMap, zone: MapZone, fill: Color, stroke: Color) {
