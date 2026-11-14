@@ -1,65 +1,75 @@
 package com.kodraliu.localrock.ui.vacuum
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.PinDrop
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.kodraliu.localrock.shared.http.currentEpochSeconds
+import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
+import com.kodraliu.localrock.shared.vacuum.getCleanRecord
 import com.kodraliu.localrock.shared.vacuum.inSection
-import com.kodraliu.localrock.shared.vacuum.DockSettings
-import com.kodraliu.localrock.shared.vacuum.RobotSettings
+import com.kodraliu.localrock.shared.vacuum.parseCleanRecord
 import com.kodraliu.localrock.ui.AppColors
-import com.kodraliu.localrock.ui.adaptive.CenteredContent
-import kotlinx.coroutines.launch
-import kotlin.math.absoluteValue
-import kotlin.math.roundToInt
-import com.kodraliu.localrock.ui.components.SettingRowInfo
+import com.kodraliu.localrock.ui.components.SettingGroup
 import com.kodraliu.localrock.ui.components.SettingsCategoryRow
 import com.kodraliu.localrock.ui.navigation.VacuumFirmware
 import com.kodraliu.localrock.ui.navigation.VacuumHistory
 import com.kodraliu.localrock.ui.navigation.VacuumMaintenance
+import com.kodraliu.localrock.ui.navigation.VacuumManageMaps
+import com.kodraliu.localrock.ui.navigation.VacuumPinGo
+import com.kodraliu.localrock.ui.navigation.VacuumRemote
+import com.kodraliu.localrock.ui.navigation.VacuumSchedule
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsBeta
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsCarpet
-import com.kodraliu.localrock.ui.navigation.VacuumSettingsDnd
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsDock
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsFloor
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsMatter
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsMoreOptions
 import com.kodraliu.localrock.ui.navigation.VacuumSettingsObstacle
-import com.kodraliu.localrock.ui.navigation.VacuumSettingsRobot
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsProductInfo
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsRemoteViewing
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsRobotVoice
+import com.kodraliu.localrock.ui.strings.SettingsStrings
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
-// ── Entry point ───────────────────────────────────────────────────────────────
-
-/** Settings root. Each row opens its own route in VacuumGraph through [onNavigate]. */
+/** Settings root: a history header card, then the official seven untitled groups. */
 @Composable
 fun VacuumSettingsScreen(
     viewModel: VacuumViewModel,
@@ -67,205 +77,129 @@ fun VacuumSettingsScreen(
     onNavigate: (Any) -> Unit,
 ) {
     val repository = viewModel.repository
-    val firmwareUpdate by viewModel.firmwareUpdate.collectAsState()
+    val caps by viewModel.capabilities.collectAsState()
     val betaFeatures by repository.betaFeatures.collectAsState()
+    val timers by repository.timers.collectAsState()
+    val consumables by repository.consumableStatus.collectAsState()
+    val history by repository.cleanHistory.collectAsState()
+    var newestRun by remember { mutableStateOf<CleanRecord?>(null) }
 
-    // Every feature the robot reports is read once, so a page with none is not offered.
+    LoadFeatureRowsOnEntry(viewModel)
     LaunchedOnEntry {
-        if (betaFeatures.isEmpty()) runCatching { repository.fetchBetaFeatures(viewModel.betaFeatureDefs) }
+        runCatching { repository.fetchTimers() }
+        runCatching { repository.fetchConsumableStatus() }
+        // Only the newest run is read here; the History page reads the rest.
+        if (repository.cleanHistory.value.isEmpty()) runCatching {
+            val id = repository.fetchCleanSummary().firstOrNull() ?: return@runCatching
+            repository.session.getCleanRecord(id).result?.let { parseCleanRecord(it, id) }?.let { newestRun = it }
+        }
     }
 
-    SettingsRootScreen(
-        modelName = viewModel.modelName,
-        firmwareVersion = viewModel.firmwareVersion,
-        firmwareUpdate = firmwareUpdate,
-        onCheckUpdate = { onNavigate(VacuumFirmware) },
-        onBack = onBack,
-        onHistory = { onNavigate(VacuumHistory) },
-        onMaintenance = { onNavigate(VacuumMaintenance) },
-        onCarpet = { onNavigate(VacuumSettingsCarpet) },
-        onFloor = if (betaFeatures.inSection(FeatureSection.FLOOR).isEmpty()) null else ({ onNavigate(VacuumSettingsFloor) }),
-        onObstacle = if (betaFeatures.inSection(FeatureSection.OBSTACLE).isEmpty()) null else ({ onNavigate(VacuumSettingsObstacle) }),
-        onDockSettings = { onNavigate(VacuumSettingsDock) },
-        onRobotSettings = { onNavigate(VacuumSettingsRobot) },
-        onDndMode = { onNavigate(VacuumSettingsDnd) },
-        onMatter = if (!viewModel.supportsMatter) null else ({ onNavigate(VacuumSettingsMatter) }),
-        onBetaFeatures = if (!viewModel.showsBetaFeatures) null else ({ onNavigate(VacuumSettingsBeta) }),
-    )
-}
+    val now = Instant.fromEpochSeconds(currentEpochSeconds()).toLocalDateTime(TimeZone.currentSystemDefault())
+    val (duration, area) = lastCleanFigures(lastCleanRecord(history) ?: newestRun)
+    val floorRows = floorFeatureGroups(betaFeatures).isNotEmpty()
+    val obstacleRows = betaFeatures.inSection(FeatureSection.OBSTACLE).isNotEmpty()
 
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SettingsRootScreen(
-    modelName: String?,
-    firmwareVersion: String?,
-    firmwareUpdate: FirmwareUpdateState,
-    onCheckUpdate: () -> Unit,
-    onBack: () -> Unit,
-    onHistory: () -> Unit,
-    onMaintenance: () -> Unit,
-    onCarpet: () -> Unit,
-    onFloor: (() -> Unit)?,
-    onObstacle: (() -> Unit)?,
-    onDockSettings: () -> Unit,
-    onRobotSettings: () -> Unit,
-    onDndMode: () -> Unit,
-    onMatter: (() -> Unit)?,
-    onBetaFeatures: (() -> Unit)?,
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        CenteredContent {
-            LazyColumn(contentPadding = padding) {
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.History,
-                        iconTint = AppColors.AccentCyan,
-                        title = "Cleaning history",
-                        subtitle = "Past cleaning sessions and totals",
-                        onClick = onHistory,
-                    )
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.Build,
-                        iconTint = AppColors.Good,
-                        title = "Maintenance",
-                        subtitle = "Brush life and consumables",
-                        onClick = onMaintenance,
-                    )
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.GridView,
-                        iconTint = AppColors.Good,
-                        title = "Carpet cleaning",
-                        subtitle = "Carpet mode and deep cleaning",
-                        onClick = onCarpet,
-                    )
-                }
-                if (onFloor != null) {
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingsCategoryRow(
-                            icon = Icons.Default.CleaningServices,
-                            iconTint = AppColors.AccentCyan,
-                            title = "Floor cleaning",
-                            subtitle = "Floor types, FlexiArm and pet areas",
-                            onClick = onFloor,
-                        )
+    SettingsPage(title = SettingsStrings.TITLE, onBack = onBack) {
+        item { HistoryHeaderCard(duration, area, onClick = { onNavigate(VacuumHistory) }) }
+        item {
+            SettingGroup {
+                SettingsCategoryRow(Icons.Default.Schedule, AppColors.AccentIndigo, SettingsStrings.SCHEDULES,
+                    schedulesDetail(nextCleaningToday(timers, now))) { onNavigate(VacuumSchedule) }
+            }
+        }
+        item {
+            SettingGroup {
+                SettingsCategoryRow(Icons.Default.Build, if (suppliesDue(consumables)) AppColors.Warn else AppColors.Good,
+                    SettingsStrings.MAINTENANCE, maintenanceDetail(consumables)) { onNavigate(VacuumMaintenance) }
+            }
+        }
+        val cleaningRows = listOfNotNull(
+            RootRow(Icons.Default.GridView, AppColors.Good, SettingsStrings.CARPET, SettingsStrings.CARPET_DETAIL, VacuumSettingsCarpet)
+                .takeIf { caps.hasCarpetSettings },
+            RootRow(Icons.Default.CleaningServices, AppColors.AccentCyan, SettingsStrings.FLOOR, SettingsStrings.FLOOR_DETAIL, VacuumSettingsFloor)
+                .takeIf { floorRows },
+            RootRow(Icons.Default.Home, AppColors.Water, SettingsStrings.DOCK, SettingsStrings.DOCK_DETAIL, VacuumSettingsDock)
+                .takeIf { caps.hasDockSettings },
+            RootRow(Icons.Default.Sensors, AppColors.AccentYellow, SettingsStrings.OBSTACLE, SettingsStrings.OBSTACLE_DETAIL, VacuumSettingsObstacle)
+                .takeIf { caps.hasObstacleSettings || obstacleRows },
+        )
+        if (cleaningRows.isNotEmpty()) {
+            item {
+                SettingGroup {
+                    cleaningRows.forEachIndexed { i, row ->
+                        if (i > 0) RowDivider()
+                        SettingsCategoryRow(row.icon, row.tint, row.title, row.detail) { onNavigate(row.route) }
                     }
                 }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.Home,
-                        iconTint = AppColors.Water,
-                        title = "Dock settings",
-                        subtitle = "Auto-empty, wash and dry options",
-                        onClick = onDockSettings,
-                    )
+            }
+        }
+        item {
+            SettingGroup {
+                SettingsCategoryRow(Icons.Default.Map, AppColors.AccentCyan, SettingsStrings.MANAGE_MAPS, SettingsStrings.MANAGE_MAPS_DETAIL) {
+                    onNavigate(VacuumManageMaps)
                 }
-                if (onObstacle != null) {
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingsCategoryRow(
-                            icon = Icons.Default.Sensors,
-                            iconTint = AppColors.AccentYellow,
-                            title = "Obstacle avoidance",
-                            subtitle = "Collision and object detection",
-                            onClick = onObstacle,
-                        )
+                RowDivider()
+                SettingsCategoryRow(
+                    Icons.Default.RecordVoiceOver, AppColors.Water,
+                    if (caps.voiceAssistant) SettingsStrings.VOICE_ASSISTANT else SettingsStrings.ROBOT_VOICE,
+                    SettingsStrings.ROBOT_VOICE_DETAIL,
+                ) { onNavigate(VacuumSettingsRobotVoice) }
+                if (caps.remoteViewing) {
+                    RowDivider()
+                    SettingsCategoryRow(Icons.Default.Videocam, AppColors.AccentPurple, SettingsStrings.REMOTE_VIEWING, SettingsStrings.REMOTE_VIEWING_DETAIL) {
+                        onNavigate(VacuumSettingsRemoteViewing)
                     }
                 }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.Settings,
-                        iconTint = AppColors.AccentPurple,
-                        title = "Robot settings",
-                        subtitle = "Volume, child lock and more",
-                        onClick = onRobotSettings,
-                    )
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingsCategoryRow(
-                        icon = Icons.Default.Schedule,
-                        iconTint = AppColors.AccentIndigo,
-                        title = "Do Not Disturb",
-                        subtitle = "Set quiet hours for cleaning",
-                        onClick = onDndMode,
-                    )
-                }
-                if (onMatter != null) {
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingsCategoryRow(
-                            icon = Icons.Default.Link,
-                            iconTint = AppColors.AccentIndigo,
-                            title = "Matter",
-                            subtitle = "Add the robot to Apple Home, Google Home and more",
-                            onClick = onMatter,
-                        )
+                if (caps.matter) {
+                    RowDivider()
+                    SettingsCategoryRow(Icons.Default.Link, AppColors.AccentIndigo, SettingsStrings.MATTER, SettingsStrings.MATTER_DETAIL) {
+                        onNavigate(VacuumSettingsMatter)
                     }
                 }
-                if (onBetaFeatures != null) {
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingsCategoryRow(
-                            icon = Icons.Default.Science,
-                            iconTint = AppColors.AccentCyan,
-                            title = "Beta features",
-                            subtitle = "Other options your robot reports",
-                            onClick = onBetaFeatures,
-                        )
+                RowDivider()
+                SettingsCategoryRow(Icons.Default.Tune, AppColors.AccentPurple, SettingsStrings.MORE_OPTIONS, SettingsStrings.MORE_OPTIONS_DETAIL) {
+                    onNavigate(VacuumSettingsMoreOptions)
+                }
+            }
+        }
+        if (caps.pinNGo || caps.remoteControl) {
+            item {
+                SettingGroup {
+                    if (caps.pinNGo) {
+                        SettingsCategoryRow(Icons.Default.PinDrop, AppColors.Good, SettingsStrings.PIN_N_GO, SettingsStrings.PIN_N_GO_DETAIL) {
+                            onNavigate(VacuumPinGo)
+                        }
+                    }
+                    if (caps.pinNGo && caps.remoteControl) RowDivider()
+                    if (caps.remoteControl) {
+                        SettingsCategoryRow(Icons.Default.Gamepad, AppColors.AccentCyan, SettingsStrings.REMOTE_CONTROL, SettingsStrings.REMOTE_CONTROL_DETAIL) {
+                            onNavigate(VacuumRemote)
+                        }
                     }
                 }
-
-                item {
-                    Text(
-                        "Firmware",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp),
-                    )
+            }
+        }
+        item {
+            // No User Manual row: LocalRock has no manual to open.
+            SettingGroup {
+                SettingsCategoryRow(Icons.Default.Info, AppColors.AccentIndigo, SettingsStrings.PRODUCT_INFO, SettingsStrings.PRODUCT_INFO_DETAIL) {
+                    onNavigate(VacuumSettingsProductInfo)
                 }
-                item {
-                    SettingRowInfo(
-                        icon = Icons.Default.Router,
-                        iconTint = AppColors.AccentIndigo,
-                        title = "Model",
-                        value = modelName ?: "Unknown",
-                    )
+            }
+        }
+        item {
+            SettingGroup {
+                if (caps.firmwareUpdates) {
+                    SettingsCategoryRow(
+                        Icons.Default.SystemUpdate, AppColors.AccentCyan, SettingsStrings.FIRMWARE_UPDATES,
+                        viewModel.firmwareVersion ?: SettingsStrings.FIRMWARE_DETAIL,
+                    ) { onNavigate(VacuumFirmware) }
                 }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingRowInfo(
-                        icon = Icons.Default.Memory,
-                        iconTint = AppColors.AccentCyan,
-                        title = "Firmware version",
-                        value = firmwareVersion ?: "Unknown",
-                    )
-                }
-                // The update check is hidden for now; FirmwareUpdateRow and the view model stay in place.
-                if (SHOW_FIRMWARE_UPDATE_CHECK) {
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        FirmwareUpdateRow(state = firmwareUpdate, onCheck = onCheckUpdate)
+                if (caps.firmwareUpdates && caps.showsBetaFeatures) RowDivider()
+                if (caps.showsBetaFeatures) {
+                    SettingsCategoryRow(Icons.Default.Science, AppColors.AccentCyan, SettingsStrings.BETA_FEATURES, SettingsStrings.BETA_FEATURES_DETAIL) {
+                        onNavigate(VacuumSettingsBeta)
                     }
                 }
             }
@@ -273,10 +207,30 @@ private fun SettingsRootScreen(
     }
 }
 
+private class RootRow(val icon: ImageVector, val tint: Color, val title: String, val detail: String, val route: Any)
 
-private const val SHOW_FIRMWARE_UPDATE_CHECK = true
+/** Last run's duration and area; opens History. */
+@Composable
+private fun HistoryHeaderCard(duration: String, area: String, onClick: () -> Unit) {
+    SettingGroup {
+        Surface(onClick = onClick, color = Color.Transparent) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                HeaderFigure(duration, SettingsStrings.HISTORY_LAST_DURATION, Modifier.weight(1f))
+                HeaderFigure(area, SettingsStrings.HISTORY_LAST_AREA, Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, SettingsStrings.HISTORY, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
 
-private fun oneDecimal(value: Float): String {
-    val scaled = (value * 10f).roundToInt()
-    return "${scaled / 10}.${(scaled % 10).absoluteValue}"
+@Composable
+private fun HeaderFigure(value: String, label: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(value, style = MaterialTheme.typography.titleLarge)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

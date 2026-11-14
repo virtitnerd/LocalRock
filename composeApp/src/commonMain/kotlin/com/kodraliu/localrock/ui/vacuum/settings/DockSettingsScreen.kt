@@ -1,60 +1,37 @@
 package com.kodraliu.localrock.ui.vacuum
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.shared.vacuum.DockCapabilities
 import com.kodraliu.localrock.shared.vacuum.DockOptions
 import com.kodraliu.localrock.shared.vacuum.DockSettings
-import com.kodraliu.localrock.shared.vacuum.ValleySettings
+import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.dryTimeLabel
+import com.kodraliu.localrock.shared.vacuum.inSection
 import com.kodraliu.localrock.shared.vacuum.labelFor
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.ui.AppColors
-import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.PickerDialog
-import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import com.kodraliu.localrock.ui.components.SettingGroup
 import com.kodraliu.localrock.ui.components.SettingRowClickable
-import androidx.compose.runtime.collectAsState
-import com.kodraliu.localrock.shared.vacuum.FeatureSection
-import com.kodraliu.localrock.shared.vacuum.inSection
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import com.kodraliu.localrock.ui.strings.SettingsStrings
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Dock Settings in the official four groups: washing, emptying, drying, dock maintenance. */
 @Composable
 internal fun DockSettingsScreen(
     dockSettings: DockSettings,
@@ -68,11 +45,9 @@ internal fun DockSettingsScreen(
     onEmptyWaterTank: () -> Unit,
     features: List<BetaFeatureState>,
     onFeatureToggle: (String, Boolean) -> Unit,
-    valleySettings: ValleySettings?,
     onMopDryingChange: (Boolean) -> Unit,
     onDryTimeChange: (Int) -> Unit,
     onWashWaterTemperatureChange: (Int) -> Unit,
-    onOpenValley: () -> Unit,
     onBack: () -> Unit,
 ) {
     var dialogTarget by remember { mutableStateOf<String?>(null) }
@@ -91,138 +66,82 @@ internal fun DockSettingsScreen(
     val washFrequencyEnabled = !busy && dockKnown && smartWash != null && washFrequencyOptions.isNotEmpty()
     val washModeEnabled = !busy && dockKnown && dockSettings.washMode != null && washModes.isNotEmpty()
     val autoEmptyEnabled = !busy && dockSettings.autoEmptyMode != null && autoEmptyModes.isNotEmpty()
+    val rowsBy = features.groupBy { dockGroupOf(it.def) }
+    fun rows(group: DockGroup) = rowsBy[group].orEmpty()
+    val dryRows = rows(DockGroup.DRY)
+    val otherRows = rows(DockGroup.OTHER)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Dock Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-                },
-            )
-        },
-    ) { padding ->
-        CenteredContent {
-            LazyColumn(contentPadding = padding) {
-                item {
-                    SettingRowClickable(
-                        icon = Icons.Default.WaterDrop,
-                        iconTint = AppColors.Water,
-                        title = "Mop wash frequency",
-                        subtitle = washFrequencyLabel(smartWash),
-                        enabled = washFrequencyEnabled,
-                        onClick = { dialogTarget = "wash_freq" },
-                    )
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingRowClickable(
-                        icon = Icons.Default.WaterDrop,
-                        iconTint = AppColors.AccentCyan,
-                        title = "Washing mode",
-                        subtitle = dockCapabilities.washModeLabel(dockSettings.washMode, dockType),
-                        enabled = washModeEnabled,
-                        onClick = { dialogTarget = "wash_mode" },
-                    )
-                }
+    SettingsPage(title = SettingsStrings.DOCK, onBack = onBack) {
+        item {
+            SettingGroup {
+                SettingRowClickable(Icons.Default.WaterDrop, AppColors.Water, SettingsStrings.MOP_WASH_FREQUENCY,
+                    washFrequencyLabel(smartWash), enabled = washFrequencyEnabled) { dialogTarget = "wash_freq" }
+                RowDivider()
+                SettingRowClickable(Icons.Default.WaterDrop, AppColors.AccentCyan, SettingsStrings.WASHING_MODE,
+                    dockCapabilities.washModeLabel(dockSettings.washMode, dockType), enabled = washModeEnabled) { dialogTarget = "wash_mode" }
                 dockSettings.washWaterTemperature?.let { temperature ->
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingRowClickable(
-                            icon = Icons.Default.Thermostat,
-                            iconTint = AppColors.Warn,
-                            title = "Washing water temperature",
-                            subtitle = DockOptions.washWaterTemperature.labelFor(temperature),
-                            enabled = !busy,
-                            onClick = { dialogTarget = "wash_temp" },
-                        )
-                    }
+                    RowDivider()
+                    SettingRowClickable(Icons.Default.Thermostat, AppColors.Warn, SettingsStrings.MOP_WASH_TEMPERATURE,
+                        DockOptions.washWaterTemperature.labelFor(temperature), enabled = !busy) { dialogTarget = "wash_temp" }
                 }
-                dockSettings.mopDrying?.let { drying ->
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
+                rows(DockGroup.WASH).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle) }
+            }
+        }
+        item {
+            SettingGroup {
+                rows(DockGroup.EMPTY).forEach { FeatureToggleRow(it, onFeatureToggle); RowDivider() }
+                SettingRowClickable(Icons.Default.Delete, AppColors.Good, SettingsStrings.EMPTY_MODE,
+                    dockCapabilities.autoEmptyModeLabel(dockSettings.autoEmptyMode), enabled = autoEmptyEnabled) { dialogTarget = "auto_empty" }
+            }
+        }
+        if (dockSettings.mopDrying != null || dryRows.isNotEmpty()) {
+            item {
+                SettingGroup {
+                    dockSettings.mopDrying?.let { drying ->
                         SettingRowSwitch(
-                            icon = Icons.Default.Air,
-                            iconTint = AppColors.AccentCyan,
-                            title = "Mop drying",
-                            subtitle = if (drying) "Dries the mops on the dock after cleaning" else "Mops are left wet on the dock",
-                            checked = drying,
-                            enabled = !busy,
-                            onCheckedChange = onMopDryingChange,
+                            icon = Icons.Default.Air, iconTint = AppColors.AccentCyan, title = SettingsStrings.AUTO_DRYING,
+                            subtitle = if (drying) SettingsStrings.MOP_DRYING_ON else SettingsStrings.MOP_DRYING_OFF,
+                            checked = drying, enabled = !busy, onCheckedChange = onMopDryingChange,
                         )
-                    }
-                    dockSettings.dryTimeSeconds?.let { seconds ->
-                        item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                        item {
-                            SettingRowClickable(
-                                icon = Icons.Default.Schedule,
-                                iconTint = AppColors.AccentCyan,
-                                title = "Drying time",
-                                subtitle = dryTimeLabel(seconds),
-                                enabled = !busy,
-                                onClick = { dialogTarget = "dry_time" },
-                            )
+                        dockSettings.dryTimeSeconds?.let { seconds ->
+                            RowDivider()
+                            SettingRowClickable(Icons.Default.Schedule, AppColors.AccentCyan, SettingsStrings.DRYING_DURATION,
+                                dryTimeLabel(seconds), enabled = !busy) { dialogTarget = "dry_time" }
                         }
                     }
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingRowClickable(
-                        icon = Icons.Default.Delete,
-                        iconTint = AppColors.Good,
-                        title = "Auto-empty mode",
-                        subtitle = dockCapabilities.autoEmptyModeLabel(dockSettings.autoEmptyMode),
-                        enabled = autoEmptyEnabled,
-                        onClick = { dialogTarget = "auto_empty" },
-                    )
-                }
-                valleySettings?.let { valley ->
-                    item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                    item {
-                        SettingRowClickable(
-                            icon = Icons.Default.Schedule,
-                            iconTint = AppColors.Good,
-                            title = "Off-peak electricity",
-                            subtitle = if (valley.enabled) "${clockText(valley.startHour, valley.startMinute)} to ${clockText(valley.endHour, valley.endMinute)}" else "Off",
-                            enabled = !busy,
-                            onClick = onOpenValley,
-                        )
+                    dryRows.forEachIndexed { i, f ->
+                        if (i > 0 || dockSettings.mopDrying != null) RowDivider()
+                        FeatureToggleRow(f, onFeatureToggle)
                     }
-                }
-                item { HorizontalDivider(Modifier.padding(start = 72.dp)) }
-                item {
-                    SettingRowClickable(
-                        icon = Icons.Default.WaterDrop,
-                        iconTint = AppColors.Water,
-                        title = "Internal water tank",
-                        subtitle = "Empty through the dock",
-                        enabled = !busy,
-                        onClick = { confirmEmptyTank = true },
-                    )
-                }
-                items(features, key = { it.def.id }) { f ->
-                    HorizontalDivider(Modifier.padding(start = 72.dp))
-                    FeatureToggleRow(f, onFeatureToggle)
                 }
             }
         }
+        item { GroupCaption(SettingsStrings.DOCK_MAINTENANCE) }
+        item {
+            SettingGroup {
+                SettingRowClickable(Icons.Default.WaterDrop, AppColors.Water, SettingsStrings.DRAIN_ONBOARD_TANK,
+                    SettingsStrings.DRAIN_ONBOARD_TANK_DETAIL, enabled = !busy) { confirmEmptyTank = true }
+                rows(DockGroup.MAINTENANCE).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle) }
+            }
+        }
+        if (otherRows.isNotEmpty()) item { FeatureCard(otherRows, onFeatureToggle) }
     }
 
     if (confirmEmptyTank) {
         AlertDialog(
             onDismissRequest = { confirmEmptyTank = false },
-            title = { Text("Empty the water tank?") },
-            text = { Text("The dock pumps the water out of the robot's built-in tank. Make sure the robot is on the dock.") },
+            title = { Text(SettingsStrings.DRAIN_CONFIRM_TITLE) },
+            text = { Text(SettingsStrings.DRAIN_CONFIRM_TEXT) },
             confirmButton = {
-                TextButton(onClick = { confirmEmptyTank = false; onEmptyWaterTank() }) { Text("Empty") }
+                TextButton(onClick = { confirmEmptyTank = false; onEmptyWaterTank() }) { Text(SettingsStrings.DRAIN_CONFIRM) }
             },
-            dismissButton = { TextButton(onClick = { confirmEmptyTank = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmEmptyTank = false }) { Text(SettingsStrings.CANCEL) } },
         )
     }
 
     when (dialogTarget) {
         "wash_freq" -> PickerDialog(
-            title = "Mop wash frequency",
+            title = SettingsStrings.MOP_WASH_FREQUENCY,
             options = washFrequencyOptions.map { it.label },
             selected = washFrequencyIndex,
             onSelect = {
@@ -234,7 +153,7 @@ internal fun DockSettingsScreen(
             onDismiss = { dialogTarget = null },
         )
         "wash_mode" -> PickerDialog(
-            title = "Washing mode",
+            title = SettingsStrings.WASHING_MODE,
             options = washModes.map { it.second },
             selected = washModeIndex,
             onSelect = { onWashModeChange(washModes[it].first); dialogTarget = null },
@@ -242,7 +161,7 @@ internal fun DockSettingsScreen(
             onDismiss = { dialogTarget = null },
         )
         "wash_temp" -> PickerDialog(
-            title = "Washing water temperature",
+            title = SettingsStrings.MOP_WASH_TEMPERATURE,
             options = DockOptions.washWaterTemperature.map { it.label },
             selected = DockOptions.washWaterTemperature.indexOfFirst { it.code == dockSettings.washWaterTemperature },
             onSelect = { onWashWaterTemperatureChange(DockOptions.washWaterTemperature[it].code); dialogTarget = null },
@@ -250,7 +169,7 @@ internal fun DockSettingsScreen(
             onDismiss = { dialogTarget = null },
         )
         "dry_time" -> PickerDialog(
-            title = "Drying time",
+            title = SettingsStrings.DRYING_DURATION,
             options = dryTimeOptions.map { it.label },
             selected = dryTimeOptions.indexOfFirst { it.code == dockSettings.dryTimeSeconds },
             onSelect = { onDryTimeChange(dryTimeOptions[it].code); dialogTarget = null },
@@ -258,7 +177,7 @@ internal fun DockSettingsScreen(
             onDismiss = { dialogTarget = null },
         )
         "auto_empty" -> PickerDialog(
-            title = "Auto-empty mode",
+            title = SettingsStrings.EMPTY_MODE,
             options = autoEmptyModes.map { it.second },
             selected = autoEmptyModes.indexOfFirst { it.first == dockSettings.autoEmptyMode },
             onSelect = { onAutoEmptyModeChange(autoEmptyModes[it].first); dialogTarget = null },
@@ -268,85 +187,16 @@ internal fun DockSettingsScreen(
     }
 }
 
-private fun clockText(hour: Int, minute: Int) = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
-
-@OptIn(ExperimentalMaterial3Api::class)
+/** Off-peak charging moved to More Options > Charging Mode, so this page no longer reads it. */
 @Composable
-internal fun ValleyScreen(
-    valleySettings: ValleySettings?,
-    onEnable: (startHour: Int, startMinute: Int, endHour: Int, endMinute: Int) -> Unit,
-    onDisable: () -> Unit,
-    onBack: () -> Unit,
-) {
-    val settings = valleySettings ?: ValleySettings()
-    var enabled by remember(valleySettings?.enabled) { mutableStateOf(settings.enabled) }
-    var startHour by remember(valleySettings) { mutableStateOf(settings.startHour) }
-    var startMinute by remember(valleySettings) { mutableStateOf(settings.startMinute) }
-    var endHour by remember(valleySettings) { mutableStateOf(settings.endHour) }
-    var endMinute by remember(valleySettings) { mutableStateOf(settings.endMinute) }
-
-    fun commit() = if (enabled) onEnable(startHour, startMinute, endHour, endMinute) else onDisable()
-
-    // Each tap on a stepper changes a time, so the robot is written once they stop, not on every tap.
-    var timesTouched by remember { mutableStateOf(false) }
-    LaunchedEffect(startHour, startMinute, endHour, endMinute) {
-        if (!timesTouched) return@LaunchedEffect
-        kotlinx.coroutines.delay(800)
-        commit()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Off-peak electricity") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
-        },
-    ) { padding ->
-        CenteredContent {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Limit charging and drying to off-peak hours", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            if (enabled) "${clockText(startHour, startMinute)} to ${clockText(endHour, endMinute)}" else "Off",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = enabled, onCheckedChange = { enabled = it; commit() })
-                }
-                if (enabled) {
-                    HorizontalDivider()
-                    Text("Start time", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ClockStepper(startHour, startMinute, onHourChange = { startHour = it; timesTouched = true }, onMinuteChange = { startMinute = it; timesTouched = true })
-                    Text("End time", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ClockStepper(endHour, endMinute, onHourChange = { endHour = it; timesTouched = true }, onMinuteChange = { endMinute = it; timesTouched = true })
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun VacuumDockSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit, onOpenValley: () -> Unit) {
+fun VacuumDockSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     val repository = viewModel.repository
     val dockSettings by repository.dockSettings.collectAsState()
-    val valleySettings by repository.valleySettings.collectAsState()
     val betaFeatures by repository.betaFeatures.collectAsState()
     val status by viewModel.status.collectAsState()
     val busy by viewModel.busy.collectAsState()
-    LaunchedOnEntry {
-        runCatching { repository.fetchDockSettings() }
-        runCatching { repository.fetchValleySettings() }
-    }
+    LoadFeatureRowsOnEntry(viewModel)
+    LaunchedOnEntry { runCatching { repository.fetchDockSettings() } }
     DockSettingsScreen(
         dockSettings = dockSettings,
         dockCapabilities = viewModel.dockCapabilities,
@@ -359,25 +209,9 @@ fun VacuumDockSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit, onO
         onEmptyWaterTank = { viewModel.run("Emptying the water tank") { it.emptyInbuiltWaterTank() } },
         features = betaFeatures.inSection(FeatureSection.DOCK),
         onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-        valleySettings = valleySettings,
         onMopDryingChange = { on -> viewModel.run { it.setMopDrying(on) } },
         onDryTimeChange = { seconds -> viewModel.run { it.setDryTime(seconds) } },
         onWashWaterTemperatureChange = { value -> viewModel.run { it.setWashWaterTemperature(value) } },
-        onOpenValley = onOpenValley,
-        onBack = onBack,
-    )
-}
-
-/** Off-peak page. From Dock Settings the settings are already read; opened on its own it reads them first. */
-@Composable
-fun VacuumValleyScreen(viewModel: VacuumViewModel, onBack: () -> Unit, fetchOnEntry: Boolean = false) {
-    val repository = viewModel.repository
-    val valleySettings by repository.valleySettings.collectAsState()
-    if (fetchOnEntry) LaunchedOnEntry { runCatching { repository.fetchValleySettings() } }
-    ValleyScreen(
-        valleySettings = valleySettings,
-        onEnable = { sh, sm, eh, em -> viewModel.run { it.setValley(sh, sm, eh, em) } },
-        onDisable = { viewModel.run { it.disableValley() } },
         onBack = onBack,
     )
 }

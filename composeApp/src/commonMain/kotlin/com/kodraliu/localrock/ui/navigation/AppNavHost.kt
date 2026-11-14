@@ -52,8 +52,10 @@ import com.kodraliu.localrock.ui.vacuum.VacuumFloorSettingsScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMaintenanceScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumMatterScreen
 import com.kodraliu.localrock.ui.vacuum.VacuumObstacleSettingsScreen
-import com.kodraliu.localrock.ui.vacuum.VacuumRobotSettingsScreen
-import com.kodraliu.localrock.ui.vacuum.VacuumValleyScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumMoreOptionsScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumRobotVoiceScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumProductInfoScreen
+import com.kodraliu.localrock.ui.vacuum.VacuumChargingModeScreen
 
 @Composable
 fun AppNavHost() {
@@ -182,31 +184,31 @@ fun AppNavHost() {
                 ComingSoonScreen(title = SettingsStrings.MAINTENANCE, onBack = back)
             }
             vacuumComposable<VacuumSettingsDock>(navController, container) {
-                VacuumDockSettingsScreen(viewModel = it, onBack = back, onOpenValley = { open(VacuumSettingsValley) })
+                VacuumDockSettingsScreen(viewModel = it, onBack = back)
             }
-            vacuumComposable<VacuumSettingsValley>(navController, container) { VacuumValleyScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsValley>(navController, container) { VacuumChargingModeScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSettingsFloor>(navController, container) { VacuumFloorSettingsScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSettingsCarpet>(navController, container) { VacuumCarpetScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSettingsObstacle>(navController, container) { VacuumObstacleSettingsScreen(viewModel = it, onBack = back) }
-            vacuumComposable<VacuumSettingsRobot>(navController, container) { VacuumRobotSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsRobot>(navController, container) { VacuumMoreOptionsScreen(viewModel = it, onBack = back, onNavigate = open) }
             vacuumComposable<VacuumSettingsDnd>(navController, container) { VacuumDndScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSettingsBeta>(navController, container) { VacuumBetaFeaturesScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumSettingsMatter>(navController, container) { VacuumMatterScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumFirmware>(navController, container) { FirmwareUpdateScreen(viewModel = it, onBack = back) }
 
             // Declared for the redesign; each opens today's closest page or a placeholder until its track replaces the body.
-            vacuumComposable<VacuumSettingsMoreOptions>(navController, container) { VacuumRobotSettingsScreen(viewModel = it, onBack = back) }
+            vacuumComposable<VacuumSettingsMoreOptions>(navController, container) { VacuumMoreOptionsScreen(viewModel = it, onBack = back, onNavigate = open) }
             vacuumComposable<VacuumSettingsChargingMode>(navController, container) {
-                VacuumValleyScreen(viewModel = it, onBack = back, fetchOnEntry = true)
+                VacuumChargingModeScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumSettingsRobotVoice>(navController, container) {
-                ComingSoonScreen(title = SettingsStrings.ROBOT_VOICE, onBack = back)
+                VacuumRobotVoiceScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumSettingsRemoteViewing>(navController, container) {
                 ComingSoonScreen(title = SettingsStrings.REMOTE_VIEWING_SETTINGS, onBack = back)
             }
             vacuumComposable<VacuumSettingsProductInfo>(navController, container) {
-                ComingSoonScreen(title = SettingsStrings.PRODUCT_INFO, onBack = back)
+                VacuumProductInfoScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumManageMaps>(navController, container) { MapEditScreen(viewModel = it, onBack = back) }
             vacuumComposable<VacuumMapDetails>(navController, container) {

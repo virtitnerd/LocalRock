@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.vacuum.DndSettings
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.strings.SettingsStrings
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -58,7 +59,7 @@ internal fun DndScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Do Not Disturb") },
+                title = { Text(SettingsStrings.DND) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             )
         },

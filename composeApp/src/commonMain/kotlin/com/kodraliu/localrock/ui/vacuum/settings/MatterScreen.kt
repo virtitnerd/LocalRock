@@ -49,6 +49,7 @@ import com.kodraliu.localrock.shared.qr.QrEncoder
 import com.kodraliu.localrock.shared.vacuum.MatterInfo
 import com.kodraliu.localrock.shared.vacuum.MatterState
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.strings.SettingsStrings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.minutes
@@ -157,7 +158,7 @@ internal fun MatterScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Matter") },
+                title = { Text(SettingsStrings.MATTER) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
