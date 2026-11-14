@@ -79,7 +79,6 @@ class CapabilitiesTest {
             assertTrue(c.hasRoutineTab) // both robots set dynamic-zone bits 25 and 26
             assertFalse(c.hasAutoEmptySettings)
             assertFalse(c.hasObstacleSettings)
-            assertFalse(c.mapBackup)
             assertEquals(listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE, MainTab.ROUTINE), c.mainTabs)
         }
     }

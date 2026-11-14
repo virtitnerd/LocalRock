@@ -50,6 +50,9 @@ data class Capabilities(
     // Manage Maps (B3).
     val mapTools: Set<MapTool>,
     val mapBackup: Boolean,
+    val mapEraser: Boolean,
+    val maxRooms: Int,
+    val floorPlan: Boolean,
     // History, firmware, maintenance (B4).
     val cruiseHistory: Boolean,
     val firmwareUpdates: Boolean,
@@ -61,9 +64,6 @@ data class Capabilities(
     val showsBetaFeatures: Boolean,
     val advertised: AdvertisedCapabilities = AdvertisedCapabilities(),
 )
-
-/** Today's map editor tools; the official gates per tool come with Manage Maps. */
-private val CurrentMapTools = setOf(MapTool.DIVIDE, MapTool.COMBINE, MapTool.NAME_ROOM, MapTool.NO_GO, MapTool.THRESHOLD, MapTool.CARPET)
 
 // Built from the model, the server's decimal featureSet and hex newFeatureSet, and the robot's own
 // new_feature_info_str (robotFeatureSet), which wins once the robot has answered.
@@ -83,6 +83,7 @@ fun buildCapabilities(
     val settings = buildSettingsCapabilities(featureSet, nfs)
     val device = devicePageFlags(nfs)
     val hasRoutineTab = device.routineTabKnown
+    val maps = buildMapCapabilities(featureSet, nfs)
     val secondary = secondaryFlags(nfs, patrol)
     return Capabilities(
         mainTabs = listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE) + if (hasRoutineTab) listOf(MainTab.ROUTINE) else emptyList(),
@@ -114,8 +115,11 @@ fun buildCapabilities(
         childLock = settings.childLock,
         matter = bit(MATTER_FEATURE_BIT),
         dock = DockCapabilities(model, featureSet, nfs),
-        mapTools = CurrentMapTools, // TODO(B3): official per-tool gates (Remove NFS 71, Floor Type RN 35, Furniture RN 36)
-        mapBackup = false, // TODO(B3): isSupportBackupMap
+        mapTools = maps.mapTools,
+        mapBackup = maps.mapBackup,
+        mapEraser = maps.mapEraser,
+        maxRooms = maps.maxRooms,
+        floorPlan = maps.floorPlan,
         cruiseHistory = secondary.cruiseHistory,
         firmwareUpdates = secondary.firmwareUpdates,
         autoFirmwareUpdates = secondary.autoFirmwareUpdates,
