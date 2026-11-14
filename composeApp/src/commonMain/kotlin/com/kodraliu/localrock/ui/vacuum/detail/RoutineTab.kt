@@ -2,11 +2,11 @@ package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,55 +22,55 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.model.Scene
+import com.kodraliu.localrock.ui.components.BonusBadge
+import com.kodraliu.localrock.ui.components.BonusKind
+import com.kodraliu.localrock.ui.strings.DeviceStrings
 
-/** Routines made in the official app. local_roborock_server stores and runs them; the app only lists and starts them. */
+/** Routine tab: routines made in the official app, kept and run by local_roborock_server. */
 @Composable
-internal fun RoutinesSheetContent(
+internal fun RoutineTabContent(
     state: RoutinesState,
     busy: Boolean,
     onRun: (Scene) -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .heightIn(max = 240.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Routines", style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(DeviceStrings.MY_ROUTINES, style = MaterialTheme.typography.titleSmall)
+            BonusBadge(BonusKind.LocalRock)
+        }
         Text(
-            "Routines saved in the Roborock app, kept by your server. Running one that is already going stops it.",
-            style = MaterialTheme.typography.bodyMedium,
+            DeviceStrings.ROUTINES_INTRO,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         when (state) {
-            RoutinesState.Loading -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            RoutinesState.Loading -> Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(28.dp))
             }
             is RoutinesState.Failed -> {
-                Text(state.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Try again") }
+                Text(state.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text(DeviceStrings.TRY_AGAIN) }
             }
             is RoutinesState.Loaded -> if (state.routines.isEmpty()) {
-                Text(
-                    "No routines for this robot. Routines are made in the Roborock app; once the server has them they show up here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Text(DeviceStrings.ROUTINES_EMPTY, style = MaterialTheme.typography.bodySmall)
             } else {
                 state.routines.forEach { scene ->
                     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Row(
-                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -83,7 +83,7 @@ internal fun RoutinesSheetContent(
                             FilledTonalButton(onClick = { onRun(scene) }, enabled = !busy) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Run")
+                                Text(DeviceStrings.RUN)
                             }
                         }
                     }

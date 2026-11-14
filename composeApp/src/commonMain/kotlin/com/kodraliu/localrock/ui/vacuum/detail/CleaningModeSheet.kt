@@ -2,30 +2,32 @@ package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,159 +44,184 @@ import com.kodraliu.localrock.shared.vacuum.VacuumFanPower
 import com.kodraliu.localrock.shared.vacuum.WaterBoxMode
 import com.kodraliu.localrock.shared.vacuum.isCustomizeModeSet
 import com.kodraliu.localrock.shared.vacuum.isSmartModeSet
-import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMapRoom
+import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
+import com.kodraliu.localrock.ui.strings.DeviceStrings
 
+internal enum class CleanPlan(val label: String) {
+    SMART(DeviceStrings.MODE_SMARTPLAN),
+    MANUAL(DeviceStrings.MODE_GENERAL),
+    PER_ROOM(DeviceStrings.MODE_CUSTOMIZE),
+}
+
+internal fun currentPlan(fanPower: Int?, waterMode: Int?, route: Int?): CleanPlan = when {
+    isSmartModeSet(fanPower, waterMode, route) -> CleanPlan.SMART
+    isCustomizeModeSet(fanPower, waterMode, route) -> CleanPlan.PER_ROOM
+    else -> CleanPlan.MANUAL
+}
+
+/** Official mode sheet: SmartPlan / General / Customize header, General sub-tabs and rows, then "More cleaning settings". */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CleaningModeSheetContent(
     currentFanPower: Int?,
     currentWaterMode: Int?,
     currentRoute: Int?,
+    seqType: Int?,
     cleaningCount: Int,
     busy: Boolean,
     supportsSmartPlan: Boolean,
+    cleanThenMop: Boolean,
+    pureMop: Boolean,
     rooms: List<ParsedMapRoom>,
     roomCleanModes: List<RoomCleanMode>,
     roomModesLoaded: Boolean?,
     error: String?,
+    onClose: () -> Unit,
     onPlanSelected: (CleanPlan) -> Unit,
+    onGeneralMode: (GeneralMode) -> Unit,
     onSaveRoomModes: (List<RoomCleanMode>) -> Unit,
     onFanPowerSelected: (Int) -> Unit,
     onWaterModeSelected: (Int) -> Unit,
     onRouteSelected: (Int) -> Unit,
     onCountChange: (Int) -> Unit,
+    onMoreSettings: () -> Unit,
 ) {
-    val initialTab = when {
-        (currentWaterMode ?: WaterBoxMode.OFF) == WaterBoxMode.OFF -> 2
-        currentFanPower == VacuumFanPower.OFF -> 1
-        else -> 0
-    }
-    var selectedTab by remember { mutableIntStateOf(initialTab) }
-    // SmartPlan owns suction, water and route; the robot rejects manual changes until it is left.
-    val smart = isSmartModeSet(currentFanPower, currentWaterMode, currentRoute)
-    // Per-room settings report their own codes for all three as well.
-    val perRoom = isCustomizeModeSet(currentFanPower, currentWaterMode, currentRoute)
-    val plan = when {
-        smart -> CleanPlan.SMART
-        perRoom -> CleanPlan.PER_ROOM
-        else -> CleanPlan.MANUAL
-    }
+    val plan = currentPlan(currentFanPower, currentWaterMode, currentRoute)
     val plans = buildList {
-        if (supportsSmartPlan || smart) add(CleanPlan.SMART)
+        if (supportsSmartPlan || plan == CleanPlan.SMART) add(CleanPlan.SMART)
         add(CleanPlan.MANUAL)
-        if (rooms.isNotEmpty() || perRoom) add(CleanPlan.PER_ROOM)
+        if (rooms.isNotEmpty() || plan == CleanPlan.PER_ROOM) add(CleanPlan.PER_ROOM)
     }
 
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
-        Spacer(Modifier.height(12.dp))
-        if (plans.size > 1) {
-            Box(Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)) {
-                ModeOptionSelector("Mode", plans.map { it.label }, plans.indexOf(plan), !busy) {
-                    if (plans[it] != plan) onPlanSelected(plans[it])
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                plans.forEach { p ->
+                    val active = p == plan
+                    Surface(onClick = { if (!busy && !active) onPlanSelected(p) }, color = Color.Transparent, shape = MaterialTheme.shapes.small) {
+                        Row(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                p.label,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (active) Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             }
+            IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = DeviceStrings.CANCEL) }
         }
         error?.let {
-            Text(
-                it,
-                modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+            Text(it, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-        if (smart) {
-            Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text("SmartPlan picks suction, water and route for each room.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        when (plan) {
+            CleanPlan.SMART -> Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text(DeviceStrings.TIP_SMART, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 CountSelector(cleaningCount, onCountChange)
             }
-        } else if (perRoom) {
-            if (roomModesLoaded == true) {
-                RoomCleanModesEditor(rooms, roomCleanModes, busy, onSaveRoomModes)
-            } else {
-                Text(
-                    if (roomModesLoaded == null) "Reading the room settings from the robot."
-                    else "Couldn't read the room settings from the robot. Close this sheet and open it again.",
+            CleanPlan.PER_ROOM -> when (roomModesLoaded) {
+                true -> RoomCleanModesEditor(rooms, roomCleanModes, busy, onSaveRoomModes)
+                else -> Text(
+                    if (roomModesLoaded == null) DeviceStrings.ROOM_MODES_LOADING else DeviceStrings.ROOM_MODES_FAILED,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else {
-            SecondaryTabRow(selectedTabIndex = selectedTab) {
-                listOf("Vac & Mop", "Mop", "Vacuum").forEachIndexed { i, title ->
-                    Tab(
-                        selected = selectedTab == i,
-                        onClick = {
-                            selectedTab = i
-                            val waterOff = (currentWaterMode ?: WaterBoxMode.OFF) == WaterBoxMode.OFF
-                            val fanOff = currentFanPower == VacuumFanPower.OFF
-                            when (i) {
-                                0 -> { if (waterOff) onWaterModeSelected(WaterBoxMode.LOW); if (fanOff) onFanPowerSelected(VacuumFanPower.BALANCED) }
-                                1 -> { if (waterOff) onWaterModeSelected(WaterBoxMode.LOW); onFanPowerSelected(VacuumFanPower.OFF) }
-                                2 -> { if (fanOff) onFanPowerSelected(VacuumFanPower.BALANCED); onWaterModeSelected(WaterBoxMode.OFF) }
-                            }
-                        },
-                        text = { Text(title) },
-                    )
-                }
-            }
+            CleanPlan.MANUAL -> GeneralPanel(
+                currentFanPower, currentWaterMode, currentRoute, seqType, cleaningCount, busy, cleanThenMop, pureMop,
+                onGeneralMode, onFanPowerSelected, onWaterModeSelected, onRouteSelected, onCountChange,
+            )
+        }
 
-            Box(Modifier.fillMaxWidth().heightIn(min = 380.dp)) {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    val subtitle = when (selectedTab) {
-                        0 -> "Vac & Mop for daily clean"
-                        1 -> "Mop only for delicate floors"
-                        else -> "Vacuum only mode"
-                    }
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                    val suction = @Composable {
-                        ModeOptionSelector("Suction power", FAN_OPTIONS.map { it.second }, FAN_OPTIONS.indexOfFirst { it.first == currentFanPower }, !busy) { onFanPowerSelected(FAN_OPTIONS[it].first) }
-                    }
-                    val water = @Composable {
-                        ModeOptionSelector("Water flow", WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(currentWaterMode) }, !busy) { onWaterModeSelected(WATER_OPTIONS[it].first) }
-                    }
-                    val route = @Composable {
-                        ModeOptionSelector("Route", ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == currentRoute }, !busy) { onRouteSelected(ROUTE_OPTIONS[it].first) }
-                    }
-
-                    when (selectedTab) {
-                        0 -> { suction(); water(); CountSelector(cleaningCount, onCountChange); route() }
-                        1 -> { water(); CountSelector(cleaningCount, onCountChange); route() }
-                        2 -> { suction(); CountSelector(cleaningCount, onCountChange); route() }
-                    }
-                }
+        Surface(
+            onClick = onMoreSettings,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(DeviceStrings.MORE_CLEANING_SETTINGS, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
             }
         }
     }
 }
 
-internal enum class CleanPlan(val label: String) {
-    SMART("SmartPlan"),
-    MANUAL("Manual"),
-    PER_ROOM("Per room"),
-}
-
-private fun roomModeSummary(mode: RoomCleanMode): String {
-    val fan = ROOM_FAN_OPTIONS.firstOrNull { it.first == mode.fanPower }?.second ?: "Other"
-    val water = WATER_OPTIONS.firstOrNull { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }?.second ?: "Other"
-    return when {
-        mode.waterBoxMode == WaterBoxMode.OFF -> "Vacuum $fan"
-        mode.fanPower == VacuumFanPower.OFF -> "Mop $water"
-        else -> "Vacuum $fan, mop $water"
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GeneralPanel(
+    currentFanPower: Int?,
+    currentWaterMode: Int?,
+    currentRoute: Int?,
+    seqType: Int?,
+    cleaningCount: Int,
+    busy: Boolean,
+    cleanThenMop: Boolean,
+    pureMop: Boolean,
+    onGeneralMode: (GeneralMode) -> Unit,
+    onFanPowerSelected: (Int) -> Unit,
+    onWaterModeSelected: (Int) -> Unit,
+    onRouteSelected: (Int) -> Unit,
+    onCountChange: (Int) -> Unit,
+) {
+    val robotMode = currentGeneralMode(currentFanPower, currentWaterMode, seqType)
+    val modes = generalModes(cleanThenMop, pureMop, robotMode == GeneralMode.MOP)
+    // Follows the tap at once; the robot's answer arrives with the next status.
+    var shown by remember(robotMode) { mutableStateOf(robotMode) }
+    SecondaryScrollableTabRow(selectedTabIndex = modes.indexOf(shown).coerceAtLeast(0), edgePadding = 16.dp) {
+        modes.forEach { mode ->
+            Tab(
+                selected = shown == mode,
+                onClick = {
+                    if (!busy && mode != shown) {
+                        shown = mode
+                        onGeneralMode(mode)
+                    }
+                },
+                text = { Text(generalModeLabel(mode)) },
+            )
+        }
+    }
+    Box(Modifier.fillMaxWidth().heightIn(min = 320.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Text(generalModeTip(shown), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (shown != GeneralMode.MOP) {
+                ModeOptionSelector(DeviceStrings.SUCTION_POWER, FAN_OPTIONS.map { it.second }, FAN_OPTIONS.indexOfFirst { it.first == currentFanPower }, !busy) {
+                    onFanPowerSelected(FAN_OPTIONS[it].first)
+                }
+            }
+            if (shown != GeneralMode.VACUUM) {
+                ModeOptionSelector(DeviceStrings.WATER_FLOW, WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(currentWaterMode) }, !busy) {
+                    onWaterModeSelected(WATER_OPTIONS[it].first)
+                }
+            }
+            CountSelector(cleaningCount, onCountChange)
+            ModeOptionSelector(DeviceStrings.ROUTE, ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == currentRoute }, !busy) {
+                onRouteSelected(ROUTE_OPTIONS[it].first)
+            }
+        }
     }
 }
 
-/**
- * One row per room on the map; a tapped room opens its suction, water and route. Nothing is sent
- * until Save, which writes every room in one command.
- */
+private fun roomModeSummary(mode: RoomCleanMode): String {
+    val fan = ROOM_FAN_OPTIONS.firstOrNull { it.first == mode.fanPower }?.second ?: DeviceStrings.OTHER
+    val water = WATER_OPTIONS.firstOrNull { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }?.second ?: DeviceStrings.OTHER
+    return when {
+        mode.waterBoxMode == WaterBoxMode.OFF -> "${DeviceStrings.MODE_VACUUM} $fan"
+        mode.fanPower == VacuumFanPower.OFF -> "${DeviceStrings.MODE_MOP} $water"
+        else -> "$fan, $water"
+    }
+}
+
+/** Customize: one row per room; a tapped room opens its suction, water and route. Nothing is sent until Save. */
 @Composable
 private fun RoomCleanModesEditor(
     rooms: List<ParsedMapRoom>,
@@ -210,8 +237,7 @@ private fun RoomCleanModesEditor(
 
     Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            if (rooms.isEmpty()) "Load the map to set up each room."
-            else "Each room is cleaned with its own suction, water and route.",
+            if (rooms.isEmpty()) DeviceStrings.ROOM_MODES_NO_MAP else DeviceStrings.TIP_CUSTOMIZE,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -238,13 +264,13 @@ private fun RoomCleanModesEditor(
                 }
                 if (open) {
                     Column(Modifier.padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        ModeOptionSelector("Suction power", ROOM_FAN_OPTIONS.map { it.second }, ROOM_FAN_OPTIONS.indexOfFirst { it.first == mode.fanPower }, !busy) {
+                        ModeOptionSelector(DeviceStrings.SUCTION_POWER, ROOM_FAN_OPTIONS.map { it.second }, ROOM_FAN_OPTIONS.indexOfFirst { it.first == mode.fanPower }, !busy) {
                             val fan = ROOM_FAN_OPTIONS[it].first
                             // A room with neither suction nor water would not be cleaned at all.
                             val water = if (fan == VacuumFanPower.OFF && mode.waterBoxMode == WaterBoxMode.OFF) WaterBoxMode.LOW else mode.waterBoxMode
                             update(mode.copy(fanPower = fan, waterBoxMode = water))
                         }
-                        ModeOptionSelector("Water flow", WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }, !busy) {
+                        ModeOptionSelector(DeviceStrings.WATER_FLOW, WATER_OPTIONS.map { it.second }, WATER_OPTIONS.indexOfFirst { it.first == WaterBoxMode.normalize(mode.waterBoxMode) }, !busy) {
                             val water = WATER_OPTIONS[it].first
                             val fan = if (water == WaterBoxMode.OFF && mode.fanPower == VacuumFanPower.OFF) VacuumFanPower.BALANCED else mode.fanPower
                             // The route is hidden without water. A Qrevo S Pro (02.33.88) refuses Deep and Deep+ in a
@@ -254,7 +280,7 @@ private fun RoomCleanModesEditor(
                             update(mode.copy(fanPower = fan, waterBoxMode = water, mopMode = route))
                         }
                         if (mode.waterBoxMode != WaterBoxMode.OFF) {
-                            ModeOptionSelector("Route", ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == mode.mopMode }, !busy) {
+                            ModeOptionSelector(DeviceStrings.ROUTE, ROUTE_OPTIONS.map { it.second }, ROUTE_OPTIONS.indexOfFirst { it.first == mode.mopMode }, !busy) {
                                 update(mode.copy(mopMode = ROUTE_OPTIONS[it].first))
                             }
                         }
@@ -264,7 +290,7 @@ private fun RoomCleanModesEditor(
         }
         if (rooms.isNotEmpty()) {
             Button(onClick = { onSave(draft) }, enabled = !busy && unsaved, modifier = Modifier.fillMaxWidth()) {
-                Text("Save room settings")
+                Text(DeviceStrings.SAVE_ROOM_MODES)
             }
         }
     }
@@ -301,8 +327,8 @@ private fun ModeOptionSelector(label: String, options: List<String>, selectedInd
 private fun CountSelector(selected: Int, onSelect: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Cleaning count", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Text(if (selected == 1) "once" else "twice", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            Text(DeviceStrings.CLEANING_COUNT, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(DeviceStrings.fill(DeviceStrings.CLEAN_COUNT_TIMES, selected), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(1, 2).forEach { count ->

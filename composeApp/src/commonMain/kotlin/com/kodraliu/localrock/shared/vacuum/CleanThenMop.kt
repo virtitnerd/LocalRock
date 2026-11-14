@@ -1,6 +1,7 @@
 package com.kodraliu.localrock.shared.vacuum
 
 import com.kodraliu.localrock.shared.protocol.V1Response
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -25,9 +26,11 @@ internal fun cleanSequenceTypeParams(
     return JsonObject(body)
 }
 
-/** get_status.seq_type as a boolean; null when the robot does not report it. */
-internal fun parseSeqType(status: JsonElement?): Boolean? =
-    ((status as? JsonObject)?.get("seq_type") as? JsonPrimitive)?.content?.toIntOrNull()?.let { it == 1 }
+/** get_status.seq_type (object or one-element array) as a boolean; null when the robot does not report it. */
+internal fun parseSeqType(status: JsonElement?): Boolean? {
+    val obj = (if (status is JsonArray) status.firstOrNull() else status) as? JsonObject
+    return (obj?.get("seq_type") as? JsonPrimitive)?.content?.toIntOrNull()?.let { it == 1 }
+}
 
 suspend fun VacuumSession.setCleanSequenceType(
     vacThenMop: Boolean,
@@ -38,4 +41,4 @@ suspend fun VacuumSession.setCleanSequenceType(
 ): V1Response = sendCommandRaw(
     "app_set_clean_sequence_type",
     cleanSequenceTypeParams(vacThenMop, fanPower, waterBoxMode, mopMode, withRepeat),
-)
+).requireOk("app_set_clean_sequence_type")

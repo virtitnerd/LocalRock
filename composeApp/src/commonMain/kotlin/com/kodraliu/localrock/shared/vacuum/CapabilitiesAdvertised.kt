@@ -2,7 +2,7 @@ package com.kodraliu.localrock.shared.vacuum
 
 // Advertised-feature flags (B6) for other tracks' screens; each names its newFeatureSet bit.
 data class AdvertisedCapabilities(
-    val cleanThenMop: Boolean = false, // 93 or 114: "Vac followed by Mop" mode tab (B2)
+    val cleanThenMop: Boolean = false, // 93 and 114: "Vac followed by Mop" mode tab (B2)
     val cleanThenMopRepeat: Boolean = false, // 102: send repeat:1 with the Vac followed by Mop write
     val cleanTimeline: Boolean = false, // 91: get_clean_detail answers, history timeline (B4)
     val mapEraser: Boolean = false, // 71: Manage Maps Remove tool, app_set_beautify_blocks (B3)
@@ -25,8 +25,8 @@ internal val AdvertisedFlagBits = setOf(71, 85, 91, 93, 98, 100, 102, 108, 114, 
 fun buildAdvertisedCapabilities(newFeatureSet: String?): AdvertisedCapabilities {
     fun bit(n: Int) = newFeatureBit(newFeatureSet, n)
     return AdvertisedCapabilities(
-        cleanThenMop = bit(93) || bit(114),
-        cleanThenMopRepeat = bit(102),
+        cleanThenMop = bit(93) && bit(114),
+        cleanThenMopRepeat = bit(93) && bit(114) && bit(102),
         cleanTimeline = bit(91),
         mapEraser = bit(71),
         syncRoomNames = bit(98),

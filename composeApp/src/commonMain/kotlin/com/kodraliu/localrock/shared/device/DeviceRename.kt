@@ -1,5 +1,6 @@
 package com.kodraliu.localrock.shared.device
 
+import com.kodraliu.localrock.shared.model.Device
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitForm
@@ -10,6 +11,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+
+/** [duid]'s name in the latest device list, so a rename shows as soon as the list reloads; [fallback] when it is missing. */
+fun currentDeviceName(devices: List<Device>, duid: String, fallback: String): String =
+    devices.firstOrNull { it.duid == duid }?.name?.takeIf { it.isNotBlank() } ?: fallback
 
 /** The longest robot name the server stores (local_roborock_server parse_device_name). */
 const val MAX_DEVICE_NAME_LENGTH = 64

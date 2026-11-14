@@ -14,10 +14,9 @@ class DetailPanelTest {
     }
 
     @Test
-    fun sidePaneShowsPanelOnlyForSheetPanels() {
+    fun sidePaneShowsEveryOpenPanel() {
         assertFalse(sidePaneShowsPanel(null))
-        assertFalse(sidePaneShowsPanel(DetailPanel.More))
-        DetailPanel.entries.filter { it != DetailPanel.More }.forEach { panel ->
+        DetailPanel.entries.forEach { panel ->
             assertTrue(sidePaneShowsPanel(panel), "side pane should show $panel")
         }
     }

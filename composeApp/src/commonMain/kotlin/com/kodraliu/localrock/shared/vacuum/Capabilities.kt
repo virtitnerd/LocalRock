@@ -18,10 +18,6 @@ data class Capabilities(
     val smartPlan: Boolean,
     val waterSlide: Boolean,
     val fastRoute: Boolean,
-    val cleanThenMop: Boolean,
-    val cleanThenMopRepeat: Boolean,
-    val pureMop: Boolean,
-    val midwayDocking: Boolean,
     // Camera, patrol and pets (B5).
     val camera: Boolean,
     val twoKeyVideo: Boolean,
@@ -86,10 +82,6 @@ fun buildCapabilities(
         smartPlan = isSmartPlanSupported(nfs),
         waterSlide = isWaterSlideSupported(nfs),
         fastRoute = isFastRouteSupported(nfs),
-        cleanThenMop = device.cleanThenMop,
-        cleanThenMopRepeat = device.cleanThenMopRepeat,
-        pureMop = device.pureMop,
-        midwayDocking = device.midwayDocking,
         camera = camera,
         twoKeyVideo = bit(TWO_KEY_VIDEO_FEATURE_BIT),
         remoteViewing = camera, // TODO(B5): official gate RNF 3 + RealTimeVideoPhoto

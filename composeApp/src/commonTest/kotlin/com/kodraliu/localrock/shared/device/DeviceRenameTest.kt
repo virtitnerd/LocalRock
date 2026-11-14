@@ -1,6 +1,7 @@
 package com.kodraliu.localrock.shared.device
 
 import com.kodraliu.localrock.shared.http.ProdJson
+import com.kodraliu.localrock.shared.model.Device
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -69,5 +70,14 @@ class DeviceRenameTest {
     fun validation_keeps_names_up_to_64_characters() {
         assertEquals("a".repeat(64), validateDeviceName(" " + "a".repeat(64) + " "))
         assertEquals("Kitchen", validateDeviceName("Kitchen"))
+    }
+
+    @Test
+    fun the_title_follows_the_reloaded_device_list() {
+        val before = listOf(Device(duid = "a", name = "Curv"), Device(duid = "b", name = "Pro"))
+        assertEquals("Curv", currentDeviceName(before, "a", "Old"))
+        assertEquals("Kitchen bot", currentDeviceName(before.map { if (it.duid == "a") it.copy(name = "Kitchen bot") else it }, "a", "Old"))
+        assertEquals("Old", currentDeviceName(before, "z", "Old"))
+        assertEquals("Old", currentDeviceName(listOf(Device(duid = "a", name = " ")), "a", "Old"))
     }
 }

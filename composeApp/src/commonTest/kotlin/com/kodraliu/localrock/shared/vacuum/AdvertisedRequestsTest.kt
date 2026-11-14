@@ -27,6 +27,8 @@ class AdvertisedRequestsTest {
         assertEquals(false, parseSeqType(Json.parseToJsonElement("""{"state":8,"seq_type":0}""")))
         assertEquals(true, parseSeqType(Json.parseToJsonElement("""{"seq_type":1}""")))
         assertNull(parseSeqType(Json.parseToJsonElement("""{"state":8}""")))
+        assertEquals(false, parseSeqType(Json.parseToJsonElement("""[{"state":8,"seq_type":0,"battery":100}]""")))
+        assertNull(parseSeqType(Json.parseToJsonElement("""[{"state":8}]""")))
     }
 
     @Test

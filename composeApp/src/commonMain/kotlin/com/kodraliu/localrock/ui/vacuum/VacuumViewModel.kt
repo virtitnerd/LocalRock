@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kodraliu.localrock.shared.AppContainer
 import com.kodraliu.localrock.shared.messages.MessageSeverity
+import com.kodraliu.localrock.shared.device.currentDeviceName
 import com.kodraliu.localrock.shared.model.Scene
 import com.kodraliu.localrock.shared.model.SceneRunResult
 import com.kodraliu.localrock.shared.model.LastKnown
@@ -60,6 +61,10 @@ class VacuumViewModel(
     }
 
     val deviceName: String = device.name
+    // Follows the device list, which Product Info reloads after a rename.
+    val currentDeviceName: StateFlow<String> = container.deviceRepository.devices
+        .map { currentDeviceName(it, device.duid, deviceName) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, deviceName)
     val modelName: String? = container.deviceRepository.productsByDuid.value[duid]?.model
     val modelDisplayName: String? = productDisplayName(container.deviceRepository.productsByDuid.value[duid])
     val firmwareVersion: String? = device.fv

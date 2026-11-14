@@ -1,32 +1,31 @@
 package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Dock
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,63 +34,45 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import com.kodraliu.localrock.shared.http.currentEpochSeconds
-import kotlinx.datetime.Instant
 import com.kodraliu.localrock.shared.vacuum.FloorMap
+import com.kodraliu.localrock.shared.vacuum.MainTab
 import com.kodraliu.localrock.shared.vacuum.MopRoute
 import com.kodraliu.localrock.shared.vacuum.SWITCH_MAP_MODE_SMART
 import com.kodraliu.localrock.shared.vacuum.VacuumFanPower
 import com.kodraliu.localrock.shared.vacuum.VacuumRepository
 import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
 import com.kodraliu.localrock.shared.vacuum.WaterBoxMode
+import com.kodraliu.localrock.shared.vacuum.appStartContinue
+import com.kodraliu.localrock.shared.vacuum.appStopCollectDust
 import com.kodraliu.localrock.shared.vacuum.isCustomizeModeSet
-import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import com.kodraliu.localrock.shared.vacuum.map.MapObstacle
-import com.kodraliu.localrock.shared.vacuum.modelSubtitle
+import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
+import com.kodraliu.localrock.shared.vacuum.readSeqType
+import com.kodraliu.localrock.shared.vacuum.setCleanSequenceType
+import com.kodraliu.localrock.shared.vacuum.visibleMainTabs
 import com.kodraliu.localrock.ui.adaptive.LocalWindowLayout
+import com.kodraliu.localrock.ui.navigation.VacuumManageMaps
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsDock
+import com.kodraliu.localrock.ui.navigation.VacuumSettingsFloor
+import com.kodraliu.localrock.ui.strings.DeviceStrings
 import kotlinx.coroutines.delay
+import kotlinx.datetime.Instant
 
+/** A confirm dialog waiting on the user: official [text], then [onConfirm]. */
+private class PendingConfirm(val text: String, val onConfirm: () -> Unit)
 
-internal val FAN_OPTIONS = listOf(
-    VacuumFanPower.QUIET to "Quiet",
-    VacuumFanPower.BALANCED to "Standard",
-    VacuumFanPower.TURBO to "Strong",
-    VacuumFanPower.MAX to "MAX",
-)
-
-/** A room can also go without suction, the official app's mop-only setting. */
-internal val ROOM_FAN_OPTIONS = listOf(VacuumFanPower.OFF to "Off") + FAN_OPTIONS
-
-internal val WATER_OPTIONS = listOf(
-    WaterBoxMode.OFF to "Off",
-    WaterBoxMode.LOW to "Low",
-    WaterBoxMode.MEDIUM to "Med",
-    WaterBoxMode.HIGH to "High",
-)
-
-internal val ROUTE_OPTIONS = listOf(
-    MopRoute.STANDARD to "Standard",
-    MopRoute.DEEP to "Deep",
-    MopRoute.DEEP_PLUS to "Deep+",
-    MopRoute.FAST to "Fast",
-)
-
-internal val DEEP_ROUTES = setOf(MopRoute.DEEP, MopRoute.DEEP_PLUS)
-
-internal val ACTIVE_CLEANING_STATES = setOf(
-    VacuumStateCodes.CLEANING, VacuumStateCodes.SEGMENT_CLEANING,
-    VacuumStateCodes.ZONED_CLEANING, VacuumStateCodes.SPOT_CLEANING,
-)
-
-
+// onNavigate opens a VacuumGraph route; until the nav host passes it, Manage Maps falls back to the map
+// editor and the Floor and Dock settings pages to the Settings root.
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun VacuumDetailScreen(
@@ -105,6 +86,7 @@ fun VacuumDetailScreen(
     onRemote: () -> Unit,
     onPinGo: () -> Unit,
     onHistory: () -> Unit,
+    onNavigate: ((Any) -> Unit)? = null,
 ) {
     val status by viewModel.status.collectAsState()
     DisposableEffect(viewModel) {
@@ -112,6 +94,8 @@ fun VacuumDetailScreen(
         onDispose { viewModel.repository.setLiveMapRate(false) }
     }
     val busy by viewModel.busy.collectAsState()
+    val capabilities by viewModel.capabilities.collectAsState()
+    val deviceName by viewModel.currentDeviceName.collectAsState()
     val mapRotation by viewModel.mapRotation.collectAsState()
     val map3DYaw by viewModel.map3DYaw.collectAsState()
     val map3DTilt by viewModel.map3DTilt.collectAsState()
@@ -133,15 +117,16 @@ fun VacuumDetailScreen(
     val unsavedMap by viewModel.repository.unsavedMapPresent.collectAsState()
     val mopMode by viewModel.repository.mopMode.collectAsState()
     val roomCleanModes by viewModel.repository.roomCleanModes.collectAsState()
-    val dockSettings by viewModel.repository.dockSettings.collectAsState()
+    val routines by viewModel.routines.collectAsState()
     var selectedRoomIds by remember { mutableStateOf(emptyList<Int>()) }
 
     var sessionRoomIds by remember { mutableStateOf(emptyList<Int>()) }
     var panel by remember { mutableStateOf<DetailPanel?>(null) }
     var openObstacle by remember { mutableStateOf<MapObstacle?>(null) }
+    var confirm by remember { mutableStateOf<PendingConfirm?>(null) }
+    var dockMenu by remember { mutableStateOf<List<DockOption>>(emptyList()) }
     val twoPane = LocalWindowLayout.current.twoPane
     BackHandler(enabled = twoPane && sidePaneShowsPanel(panel)) { panel = null }
-    val routines by viewModel.routines.collectAsState()
     var recoverLoading by remember { mutableStateOf(false) }
     var recoverTick by remember { mutableIntStateOf(0) }
     var renamingMap by remember { mutableStateOf<FloorMap?>(null) }
@@ -153,19 +138,27 @@ fun VacuumDetailScreen(
     var choosingMapToKeep by remember { mutableStateOf(false) }
     var lastCleanArea by remember { mutableStateOf<Long?>(null) }
     var cleaningCount by remember { mutableIntStateOf(1) }
-    // The map's pan/zoom lives here so it survives the compact ↔ two-pane switch.
+    // seq_type is not in VacuumStatus; read it from get_status on robots with "Vac followed by Mop".
+    var seqType by remember { mutableStateOf<Int?>(null) }
+    // The map's pan/zoom lives here so it survives the compact and two-pane switch.
     val mapViewport = remember { LiveMapViewport() }
 
+    // Last tab survives sub-screens and rotation, like the official MC.tabIndex.
+    var rememberedTab by rememberSaveable { mutableStateOf(MainTab.FULL) }
+    val routineCount = (routines as? RoutinesState.Loaded)?.routines?.size ?: 0
+    val tabs = visibleMainTabs(capabilities, routineCount)
+    val tab = resolveTab(rememberedTab, tabs)
 
     val sessionRoomNames = remember(sessionRoomIds, status.state, parsedMap) {
         if (status.state == VacuumStateCodes.SEGMENT_CLEANING && sessionRoomIds.isNotEmpty()) {
             val byId = parsedMap?.rooms?.associateBy { it.id } ?: emptyMap()
-            sessionRoomIds.map { id -> byId[id]?.name ?: "Room $id" }
+            sessionRoomIds.map { id -> byId[id]?.name ?: "${DeviceStrings.TAB_ROOM} $id" }
         } else {
             emptyList()
         }
     }
 
+    LaunchedEffect(Unit) { viewModel.loadRoutines() }
     LaunchedEffect(status.cleanArea) {
         if ((status.cleanArea ?: 0L) > 0L) lastCleanArea = status.cleanArea
     }
@@ -181,6 +174,9 @@ fun VacuumDetailScreen(
     LaunchedEffect(panel == DetailPanel.CleaningMode) {
         if (panel == DetailPanel.CleaningMode) runCatching { viewModel.repository.fetchMopMode() }
     }
+    LaunchedEffect(capabilities.advertised.cleanThenMop, panel == DetailPanel.CleaningMode, status.fanPower, status.waterBoxCustomMode) {
+        if (capabilities.advertised.cleanThenMop) runCatching { viewModel.repository.session.readSeqType() }.getOrNull()?.let { seqType = it }
+    }
     val perRoomMode = isCustomizeModeSet(status.fanPower, status.waterBoxCustomMode, mopMode)
     // Null while the robot's room settings are being read, false when that failed. Saving is only
     // offered once they are known, or the defaults shown meanwhile would overwrite them.
@@ -191,13 +187,6 @@ fun VacuumDetailScreen(
             roomModesLoaded = runCatching { viewModel.repository.fetchRoomCleanModes() }.isSuccess
         }
     }
-    LaunchedEffect(panel == DetailPanel.Dock) {
-        if (panel == DetailPanel.Dock) runCatching { viewModel.repository.fetchDockSettings() }
-    }
-    LaunchedEffect(panel == DetailPanel.Routines) {
-        if (panel == DetailPanel.Routines) viewModel.loadRoutines()
-    }
-
     LaunchedEffect(panel == DetailPanel.Maps, recoverTick) {
         if (panel == DetailPanel.Maps) {
             recoverLoading = true
@@ -206,71 +195,75 @@ fun VacuumDetailScreen(
         }
     }
 
-    val onMoreAction: (MoreAction) -> Unit = { action ->
+    val openManageMaps: () -> Unit = { onNavigate?.invoke(VacuumManageMaps) ?: onMapEdit() }
+    val onLoadMap: () -> Unit = { viewModel.refreshMap() }
+    val onRecover: () -> Unit = { panel = DetailPanel.Maps }
+    val toggleRoom: (Int) -> Unit = { roomId ->
+        selectedRoomIds = if (roomId in selectedRoomIds) selectedRoomIds.filter { it != roomId } else selectedRoomIds + roomId
+    }
+    // A room tapped on the map selects it on the Room tab, whatever tab was showing.
+    val onRoomTap: (Int) -> Unit = { roomId ->
+        rememberedTab = MainTab.ROOM
+        toggleRoom(roomId)
+    }
+    val onFloorSwitch: (Int) -> Unit = { flag -> viewModel.run { it.switchFloor(flag) } }
+    val cleanRooms: () -> Unit = {
+        val toClean = selectedRoomIds
+        sessionRoomIds = toClean
+        selectedRoomIds = emptyList()
+        viewModel.run(DeviceStrings.CLEANING_STARTED) { it.cleanRooms(toClean, cleaningCount) }
+    }
+    val sendDock: () -> Unit = {
+        sessionRoomIds = emptyList()
+        viewModel.run(DeviceStrings.RETURNING_TOAST) { it.dock() }
+    }
+
+    val onStart: (StartAction) -> Unit = { action ->
         when (action) {
-            MoreAction.ROOMS -> panel = DetailPanel.Rooms
-            MoreAction.DOCK -> panel = DetailPanel.Dock
-            MoreAction.MAPS -> panel = DetailPanel.Maps
-            MoreAction.ROUTINES -> panel = DetailPanel.Routines
-            MoreAction.ZONES -> { panel = null; onZoneClean() }
-            MoreAction.PIN_GO -> { panel = null; onPinGo() }
-            MoreAction.REMOTE -> { panel = null; onRemote() }
-            MoreAction.SCHEDULE -> { panel = null; onSchedule() }
-            MoreAction.CAMERA -> { panel = null; onCamera() }
-            MoreAction.HISTORY -> { panel = null; onHistory() }
-            MoreAction.EDIT_MAP -> { panel = null; onMapEdit() }
-            MoreAction.FIND_PET -> { panel = null; viewModel.run("Looking for your pet") { it.startPetSearch() } }
+            StartAction.PAUSE -> viewModel.run { it.pause() }
+            StartAction.RESUME -> viewModel.run(DeviceStrings.CLEANING_RESUMED) { it.resumeCleaning() }
+            StartAction.CLEAN -> when (tab) {
+                MainTab.FULL -> {
+                    sessionRoomIds = emptyList()
+                    val order = viewModel.defaultCleanOrder()
+                    viewModel.run(DeviceStrings.CLEANING_STARTED) { it.clean(order) }
+                }
+                MainTab.ROOM -> cleanRooms()
+                MainTab.ZONE -> onZoneClean()
+                MainTab.ROUTINE -> Unit
+            }
+        }
+    }
+    val onDock: () -> Unit = {
+        val options = dockMenuOptions(status.state, status.inCleaning, capabilities.advertised.midwayDock, status.dockType)
+        val confirmText = dockConfirm(status.state, status.inCleaning)
+        when {
+            options.isNotEmpty() -> dockMenu = options
+            dockAction(status.state) == DockAction.OPEN_SHEET -> panel = DetailPanel.Dock
+            dockAction(status.state) == DockAction.STOP_RETURNING -> if (confirmText != null) {
+                // Stop returning with a job open goes back to cleaning; captured as app_start [{"clean_mop":0}] for a full clean.
+                val inCleaning = status.inCleaning
+                confirm = PendingConfirm(confirmText) {
+                    viewModel.run(DeviceStrings.CLEANING_RESUMED) { if (inCleaning == 1) it.session.appStartContinue() else it.resumeCleaning() }
+                }
+            } else {
+                viewModel.run { it.pause() }
+            }
+            confirmText != null -> confirm = PendingConfirm(confirmText, sendDock)
+            else -> sendDock()
+        }
+    }
+    val onDockOption: (DockOption) -> Unit = { option ->
+        dockMenu = emptyList()
+        when (option) {
+            DockOption.BACK_TO_DOCK -> confirm = PendingConfirm(DeviceStrings.CONFIRM_END_CLEAN_RETURN, sendDock)
+            DockOption.MIDWAY_EMPTY -> viewModel.run { it.collectDust() }
+            DockOption.MIDWAY_WASH -> viewModel.run { it.washMop() }
         }
     }
 
-    val onLoadMap: () -> Unit = { viewModel.refreshMap() }
-    val onRecover: () -> Unit = { panel = DetailPanel.Maps }
-    val onRoomTap: (Int) -> Unit = { roomId ->
-        selectedRoomIds = if (roomId in selectedRoomIds)
-            selectedRoomIds.filter { it != roomId }
-        else selectedRoomIds + roomId
-    }
-    val onFloorSwitch: (Int) -> Unit = { flag -> viewModel.run { it.switchFloor(flag) } }
-
     val PanelBody: @Composable (DetailPanel) -> Unit = { currentPanel ->
         when (currentPanel) {
-            DetailPanel.More -> MoreActionsSheetContent(showFindPet = viewModel.supportsPetSearch, showCamera = viewModel.supportsCamera, onAction = onMoreAction)
-
-            DetailPanel.Routines -> RoutinesSheetContent(
-                state = routines,
-                busy = busy,
-                onRun = { scene ->
-                    panel = null
-                    viewModel.runRoutine(scene)
-                },
-                onRetry = { viewModel.loadRoutines() },
-            )
-
-            DetailPanel.Rooms -> RoomsSheetContent(
-                rooms = parsedMap?.rooms ?: emptyList(),
-                selectedRoomIds = selectedRoomIds,
-                busy = busy,
-                onRoomToggle = { roomId ->
-                    selectedRoomIds = if (roomId in selectedRoomIds)
-                        selectedRoomIds.filter { it != roomId }
-                    else selectedRoomIds + roomId
-                },
-                onCleanRooms = {
-                    val toClean = selectedRoomIds
-                    sessionRoomIds = toClean
-                    selectedRoomIds = emptyList()
-                    panel = null
-                    viewModel.run { it.cleanRooms(toClean, cleaningCount) }
-                },
-                onLoadMap = {
-                    panel = null
-                    viewModel.refreshMap()
-                },
-                onDefaultOrder = {
-                    panel = DetailPanel.Order
-                },
-            )
-
             DetailPanel.Order -> CleanOrderSheetContent(
                 rooms = parsedMap?.rooms ?: emptyList(),
                 savedOrder = remember(currentFloorFlag) { viewModel.defaultCleanOrder() },
@@ -288,16 +281,13 @@ fun VacuumDetailScreen(
             DetailPanel.Dock -> DockSheetContent(
                 status = status,
                 busy = busy,
-                dockSettings = dockSettings,
-                dockCapabilities = viewModel.dockCapabilities,
-                onEmptyDustbin = { panel = null; viewModel.run { it.collectDust() } },
-                onWashMop = { panel = null; viewModel.run { it.washMop() } },
-                // Dry keeps the sheet open so the drying status row appears in place.
+                onEmptyDustbin = { viewModel.run { it.collectDust() } },
+                onStopEmptying = { viewModel.run { it.session.appStopCollectDust() } },
+                onWashMop = { viewModel.run { it.washMop() } },
+                onStopWash = { viewModel.run { it.stopWash() } },
                 onDryMop = { viewModel.run { it.startDryer() } },
                 onStopDry = { viewModel.run { it.stopDryer() } },
-                onWashModeChange = { mode -> viewModel.run { repo -> repo.setWashMode(mode) } },
-                onWashFrequencyChange = { mode, minutes -> viewModel.run { repo -> repo.setWashFrequency(mode, minutes) } },
-                onAutoEmptyModeChange = { mode -> viewModel.run { repo -> repo.setAutoEmptyMode(mode) } },
+                onDockSettings = { panel = null; onNavigate?.invoke(VacuumSettingsDock) ?: onSettings() },
             )
 
             DetailPanel.CleaningMode -> {
@@ -307,19 +297,45 @@ fun VacuumDetailScreen(
                     modeError = null
                     viewModel.run(successMessage, onError = { modeError = it }, action = action)
                 }
+                // Changing mode during a job ends it first, after the official confirm.
+                fun changeMode(successMessage: String? = null, action: suspend (VacuumRepository) -> Unit) {
+                    if (isTaskOpen(status.state, status.inCleaning)) {
+                        confirm = PendingConfirm(DeviceStrings.MODE_SWITCH_CONFIRM) {
+                            runMode(successMessage) { repo -> repo.stopCleaning(); action(repo) }
+                        }
+                    } else {
+                        runMode(successMessage, action)
+                    }
+                }
+                // "Vac followed by Mop" writes all three codes with app_set_clean_sequence_type.
+                fun writeSequence(on: Boolean, fan: Int?, water: Int?, route: Int?) = changeMode { repo ->
+                    repo.session.setCleanSequenceType(
+                        vacThenMop = on,
+                        fanPower = fan ?: status.fanPower ?: VacuumFanPower.BALANCED,
+                        waterBoxMode = water ?: status.waterBoxCustomMode ?: WaterBoxMode.LOW,
+                        mopMode = route ?: mopMode ?: MopRoute.STANDARD,
+                        withRepeat = capabilities.advertised.cleanThenMopRepeat,
+                    )
+                    seqType = if (on) 1 else 0
+                }
+                val inSequence = seqType == 1
                 CleaningModeSheetContent(
                     currentFanPower = status.fanPower,
                     currentWaterMode = status.waterBoxCustomMode,
                     currentRoute = mopMode,
+                    seqType = seqType,
                     cleaningCount = cleaningCount,
                     busy = busy,
                     supportsSmartPlan = supportsSmartPlan,
+                    cleanThenMop = capabilities.advertised.cleanThenMop,
+                    pureMop = !capabilities.advertised.forbidPureMop,
                     rooms = parsedMap?.rooms ?: emptyList(),
                     roomCleanModes = roomCleanModes,
                     roomModesLoaded = roomModesLoaded,
                     error = modeError,
+                    onClose = { panel = null },
                     onPlanSelected = { plan ->
-                        runMode {
+                        changeMode {
                             when (plan) {
                                 CleanPlan.SMART -> it.setCleanMotorMode(VacuumFanPower.SMART, WaterBoxMode.SMART, MopRoute.SMART)
                                 CleanPlan.MANUAL -> {
@@ -332,11 +348,29 @@ fun VacuumDetailScreen(
                             }
                         }
                     },
-                    onSaveRoomModes = { modes -> runMode("Room settings saved") { it.saveRoomCleanModes(modes) } },
-                    onFanPowerSelected = { level -> runMode { it.setFanPower(level) } },
-                    onWaterModeSelected = { level -> runMode { it.setWaterBoxMode(level) } },
-                    onRouteSelected = { mode -> runMode { it.setMopMode(mode) } },
+                    onGeneralMode = { mode ->
+                        val change = motorChangeFor(mode, status.fanPower, status.waterBoxCustomMode)
+                        when {
+                            mode == GeneralMode.VAC_THEN_MOP -> writeSequence(true, change.fanPower, change.waterMode, null)
+                            inSequence -> writeSequence(false, change.fanPower, change.waterMode, null)
+                            else -> changeMode { repo ->
+                                change.waterMode?.let { repo.setWaterBoxMode(it) }
+                                change.fanPower?.let { repo.setFanPower(it) }
+                            }
+                        }
+                    },
+                    onSaveRoomModes = { modes -> runMode(DeviceStrings.ROOM_MODES_SAVED) { it.saveRoomCleanModes(modes) } },
+                    onFanPowerSelected = { level ->
+                        if (inSequence) writeSequence(true, level, null, null) else changeMode { it.setFanPower(level) }
+                    },
+                    onWaterModeSelected = { level ->
+                        if (inSequence) writeSequence(true, null, level, null) else changeMode { it.setWaterBoxMode(level) }
+                    },
+                    onRouteSelected = { route ->
+                        if (inSequence) writeSequence(true, null, null, route) else changeMode { it.setMopMode(route) }
+                    },
                     onCountChange = { cleaningCount = it },
+                    onMoreSettings = { panel = null; onNavigate?.invoke(VacuumSettingsFloor) ?: onSettings() },
                 )
             }
 
@@ -385,68 +419,54 @@ fun VacuumDetailScreen(
         }
     }
 
-    // Status + controls live in one band so the phone and two-pane layouts cannot silently diverge.
-    val ControlBand: @Composable () -> Unit = {
+    val StatusCard: @Composable () -> Unit = {
         StatusBar(
             status = status,
             lastCleanArea = lastCleanArea,
             onHistory = onHistory,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
         )
-
-        ControlBar(
+    }
+    val Controls: @Composable () -> Unit = {
+        ControlPanel(
+            tabs = tabs,
+            tab = tab,
+            onTab = { rememberedTab = it },
             status = status,
             busy = busy,
-            selectedRoomCount = selectedRoomIds.size,
-            onClean = {
-                sessionRoomIds = emptyList()
-                val order = viewModel.defaultCleanOrder()
-                viewModel.run("Cleaning started") { it.clean(order) }
-            },
-            onCleanRooms = {
-                val toClean = selectedRoomIds
-                sessionRoomIds = toClean
-                selectedRoomIds = emptyList()
-                viewModel.run { it.cleanRooms(toClean, cleaningCount) }
-            },
-            onClearSelection = { selectedRoomIds = emptyList() },
-            onPause = { viewModel.run { it.pause() } },
-            onResume = { viewModel.run("Cleaning resumed") { it.resumeCleaning() } },
+            modeLabel = modeChipLabel(status.fanPower, status.waterBoxCustomMode, mopMode, seqType),
+            onModeChip = { panel = DetailPanel.CleaningMode },
+            rooms = parsedMap?.rooms ?: emptyList(),
+            selectedRoomIds = selectedRoomIds,
+            onRoomToggle = toggleRoom,
+            onDefaultOrder = { panel = DetailPanel.Order },
+            onOpenZones = onZoneClean,
+            routines = routines,
+            onRunRoutine = { scene -> viewModel.runRoutine(scene) },
+            onRetryRoutines = { viewModel.loadRoutines() },
+            onStart = onStart,
             onStop = {
                 sessionRoomIds = emptyList()
                 viewModel.run { it.stopCleaning() }
             },
-            onDock = {
-                sessionRoomIds = emptyList()
-                viewModel.run("Returning to dock") { it.dock() }
-            },
-            onCleaningMode = { panel = DetailPanel.CleaningMode },
-            onMore = { panel = DetailPanel.More },
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            onDock = onDock,
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp).navigationBarsPadding(),
         )
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(viewModel.deviceName, style = MaterialTheme.typography.titleLarge)
-                        modelSubtitle(viewModel.deviceName, viewModel.modelDisplayName)?.let {
-                            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
+            DeviceTopBar(
+                deviceName = deviceName,
+                status = status,
+                showCamera = capabilities.camera,
+                mapReady = liveMap != null,
+                showPetSearch = capabilities.petSearch,
+                onBack = onBack,
+                onCamera = onCamera,
+                onMap = openManageMaps,
+                onSettings = onSettings,
+                onPetSearch = { viewModel.run(DeviceStrings.PET_SEARCH_STARTED) { it.startPetSearch() } },
             )
         },
     ) { paddingValues ->
@@ -472,7 +492,7 @@ fun VacuumDetailScreen(
                 onRoomTap = onRoomTap,
                 onObstacleTap = { openObstacle = it },
                 onFloorSwitch = onFloorSwitch,
-                onEditMap = onMapEdit,
+                onEditMap = openManageMaps,
                 // Each view keeps its own heading: this button turns whichever one is showing.
                 onRotate = { if (map3D) viewModel.turnMap3DBy(90f) else viewModel.rotateMap90() },
                 onToggle3D = { viewModel.setMap3D(!map3D) },
@@ -509,26 +529,26 @@ fun VacuumDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(onClick = { panel = null }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = DeviceStrings.BACK)
                                 }
                                 Text(headed.title(), style = MaterialTheme.typography.titleMedium)
                             }
                             PanelBody(headed)
                         } else {
-                            MoreActionsSheetContent(showFindPet = viewModel.supportsPetSearch, showCamera = viewModel.supportsCamera, onAction = onMoreAction)
+                            StatusCard()
+                            Spacer(Modifier.weight(1f))
                         }
                     }
 
-                    ControlBand()
+                    Controls()
                 }
             }
         } else {
-            // The map is the screen. Status and controls sit in a fixed band beneath it so the hero
-            // never scrolls out of view and the primary action never moves under the thumb.
-            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // The map is the screen; the compact status line and the control panel sit in a fixed band beneath it.
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues), verticalArrangement = Arrangement.Top) {
                 MapHero(Modifier.weight(1f).fillMaxSize())
-
-                ControlBand()
+                StatusCard()
+                Controls()
             }
         }
     }
@@ -540,9 +560,42 @@ fun VacuumDetailScreen(
     }
 
     if (!twoPane) panel?.let { current ->
-        // The Maps sheet has map pictures and buttons below the fold, so it opens at full height.
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = current == DetailPanel.Maps)
+        // The Maps and mode sheets have content below the fold, so they open at full height.
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = current == DetailPanel.Maps || current == DetailPanel.CleaningMode)
         ModalBottomSheet(onDismissRequest = { panel = null }, sheetState = sheetState) { PanelBody(current) }
+    }
+
+    confirm?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            text = { Text(pending.text) },
+            confirmButton = {
+                TextButton(onClick = { confirm = null; pending.onConfirm() }) { Text(DeviceStrings.OK) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirm = null }) { Text(DeviceStrings.CANCEL) }
+            },
+        )
+    }
+
+    if (dockMenu.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { dockMenu = emptyList() },
+            title = { Text(DeviceStrings.DOCK) },
+            text = {
+                Column {
+                    dockMenu.forEach { option ->
+                        TextButton(onClick = { onDockOption(option) }, modifier = Modifier.fillMaxWidth()) {
+                            Text(option.label, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { dockMenu = emptyList() }) { Text(DeviceStrings.CANCEL) }
+            },
+        )
     }
 
     renamingMap?.let { floor ->

@@ -28,18 +28,6 @@ internal fun batteryColor(battery: Int?): Color = when {
     else -> AppColors.Good
 }
 
-@Composable
-internal fun stateLabel(state: Int?): String =
-    if (state == null) "—" else VacuumStateCodes.describe(state)
-
-internal fun dryingLabel(remainingDrySec: Long?): String {
-    val left = remainingDrySec?.takeIf { it > 0 }?.let { s ->
-        val m = s / 60
-        if (m >= 60) "${m / 60}h ${m % 60}m left" else "${m}m left"
-    }
-    return if (left != null) "Drying mop · $left" else "Drying mop"
-}
-
 internal fun isBusyState(state: Int?): Boolean = when (state) {
     null,
     VacuumStateCodes.IDLE,

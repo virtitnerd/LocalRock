@@ -165,6 +165,7 @@ fun AppNavHost() {
                     onRemote = { navController.navigate(VacuumRemote) },
                     onPinGo = { navController.navigate(VacuumPinGo) },
                     onHistory = { navController.navigate(VacuumHistory) },
+                    onNavigate = open,
                 )
             }
             vacuumComposable<VacuumRemote>(navController, container) { VacuumRemoteScreen(viewModel = it, onBack = back) }
