@@ -53,8 +53,9 @@ class CameraLiveSession(private val session: VacuumSession) {
     sealed interface State {
         data object Idle : State
         data class Connecting(val stage: String) : State
+        data class Activating(val secondsLeft: Int, val twoKey: Boolean) : State
         data object Streaming : State
-        data class Failed(val message: String) : State
+        data class Failed(val message: String, val canActivate: Boolean = false) : State
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -66,8 +67,12 @@ class CameraLiveSession(private val session: VacuumSession) {
     private val _peer = MutableStateFlow<RtcPeer?>(null)
     val peer: StateFlow<RtcPeer?> = _peer
 
+    /** Whether the last attempt was to register a new PIN, so activation can finish that step. */
+    private var registeringPin = false
+
     fun start(pin: String) {
         if (connectJob?.isActive == true) return
+        registeringPin = false
         _state.value = State.Connecting("Preparing…")
         connectJob = scope.launch {
             try {
@@ -75,8 +80,7 @@ class CameraLiveSession(private val session: VacuumSession) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _state.value = State.Failed(e.message ?: e::class.simpleName ?: "Unknown error")
-                closePeer()
+                fail(e)
             }
         }
     }
@@ -84,29 +88,78 @@ class CameraLiveSession(private val session: VacuumSession) {
 
     fun setPinAndStart(pin: String) {
         if (connectJob?.isActive == true) return
+        registeringPin = true
         _state.value = State.Connecting("Setting PIN on robot…")
         connectJob = scope.launch {
             try {
-                val passwordMd5 = md5Hex(pin)
-                val first = runCatching { session.setHomesecPassword(passwordMd5) }
-                if (first.isFailure || first.getOrNull()?.error != null) {
-                    runCatching { session.resetHomesecPassword() }
-                    val retry = session.setHomesecPassword(passwordMd5)
-                    if (retry.error != null) {
-                        if (errorCode(retry.error) == ERR_PASSWORD_DISABLED) {
-                            throw IllegalStateException(PASSWORD_DISABLED_HINT)
-                        }
-                        throw IllegalStateException("Robot refused to set the PIN: ${retry.error}")
-                    }
-                }
+                registerPin(pin)
                 connect(pin)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _state.value = State.Failed(e.message ?: e::class.simpleName ?: "Unknown error")
-                closePeer()
+                fail(e)
             }
         }
+    }
+
+    /** Turns remote viewing on with the robot's own activation, then connects. */
+    fun activate(pin: String, twoKey: Boolean) {
+        if (connectJob?.isActive == true) return
+        _state.value = State.Activating(ACTIVATION_SECONDS, twoKey)
+        connectJob = scope.launch {
+            try {
+                activateRemoteViewing(twoKey)
+                if (registeringPin) registerPin(pin)
+                connect(pin)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                fail(e)
+            }
+        }
+    }
+
+    private suspend fun registerPin(pin: String) {
+        val passwordMd5 = md5Hex(pin)
+        val first = runCatching { session.setHomesecPassword(passwordMd5) }
+        if (first.isFailure || first.getOrNull()?.error != null) {
+            runCatching { session.resetHomesecPassword() }
+            val retry = session.setHomesecPassword(passwordMd5)
+            if (retry.error != null) {
+                if (errorCode(retry.error) == ERR_PASSWORD_DISABLED) throw ActivationRequired(PASSWORD_DISABLED_HINT)
+                throw IllegalStateException("Robot refused to set the PIN: ${retry.error}")
+            }
+        }
+    }
+
+    private fun fail(e: Throwable) {
+        _state.value = State.Failed(e.message ?: e::class.simpleName ?: "Unknown error", canActivate = e is ActivationRequired)
+        closePeer()
+    }
+
+    /**
+     * Two-key robots are asked to wait for the Power press by writing state 1 into `camera_status`;
+     * three-key robots just wait for the button hold. Either way the robot sets the bit itself.
+     */
+    private suspend fun activateRemoteViewing(twoKey: Boolean) {
+        suspend fun read() = runCatching { firstInt(session.getCameraStatus().result) }.getOrNull()?.let { CameraStatus(it) }
+        val start = read() ?: throw IllegalStateException("The robot did not report its camera status")
+        if (start.activated) return
+        if (twoKey) {
+            for (step in start.twoKeyActivationSteps()) {
+                val write = session.setCameraStatus(step.raw)
+                if (write.error != null) throw IllegalStateException("The robot refused to start activation: ${write.error}")
+                delay(300)
+            }
+        }
+        repeat(ACTIVATION_SECONDS) { elapsed ->
+            _state.value = State.Activating(ACTIVATION_SECONDS - elapsed, twoKey)
+            delay(1_000)
+            val now = read() ?: return@repeat
+            if (now.activated) return
+        }
+        if (twoKey) runCatching { session.setCameraStatus((read() ?: start).cancellingTwoKey().raw) }
+        throw IllegalStateException("Activation timed out. Tap Activate again and press the button within a minute.")
     }
 
     fun stop() {
@@ -136,9 +189,7 @@ class CameraLiveSession(private val session: VacuumSession) {
         _state.value = State.Connecting("Checking PIN…")
         val check = session.checkHomesecPassword(passwordMd5)
         if (check.error != null) {
-            if (errorCode(check.error) == ERR_PASSWORD_DISABLED) {
-                throw IllegalStateException(PASSWORD_DISABLED_HINT)
-            }
+            if (errorCode(check.error) == ERR_PASSWORD_DISABLED) throw ActivationRequired(PASSWORD_DISABLED_HINT)
             throw IllegalStateException("PIN check failed: ${check.error}")
         }
         val ok = firstInt(check.result)
@@ -163,11 +214,9 @@ class CameraLiveSession(private val session: VacuumSession) {
         if (startResp.error != null) {
             if (errorCode(startResp.error) == ERR_CAMERA_PREVIEW_DENIED) {
                 val status = runCatching { firstInt(session.getCameraStatus().result) }.getOrNull()
-                throw IllegalStateException(
-                    "Remote viewing is not enabled on this robot (-10012, camera_status=" +
-                        "${status ?: "unknown"}). It can only be switched on from the manufacturer's " +
-                        "own app while the robot is connected to the manufacturer's cloud, and the " +
-                        "setting is lost when the robot is moved back to a local server."
+                throw ActivationRequired(
+                    "Remote viewing is not activated on this robot (-10012, camera_status=" +
+                        "${status ?: "unknown"}). Activate it here, then press the button on the robot when asked."
                 )
             }
             if (errorCode(startResp.error) == ERR_TURN_SERVER_FAILED) throw IllegalStateException(TURN_SERVER_HINT)
@@ -275,7 +324,11 @@ class CameraLiveSession(private val session: VacuumSession) {
     private fun b64(json: JsonElement): String =
         Base64.encode(SignalingJson.encodeToString(JsonElement.serializer(), json).encodeToByteArray())
 
+    /** The robot refused the preview because remote viewing has not been activated on it. */
+    private class ActivationRequired(message: String) : IllegalStateException(message)
+
     private companion object {
+        const val ACTIVATION_SECONDS = 60
         const val CLIENT_ID = "7661636c6f63616c"
         val SignalingJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
@@ -286,16 +339,10 @@ class CameraLiveSession(private val session: VacuumSession) {
         const val ERR_CAMERA_PREVIEW_DENIED = -10012
 
         /**
-         * `camera_status` findings for a Qrevo Curv 2 Flow (2026-09-21), kept because they are not
-         * documented anywhere: 259 (0x103) with remote viewing off, 8615 (0x21A7) when Roborock's
-         * cloud enables it. **Bit 2 (0x4) is the authorization and is write-protected** —
-         * `set_camera_status` rejects any value containing it with -10005, while bits 5, 7 and 13
-         * write fine and do not unblock the preview. No RPC on this firmware sets `home_sec_status`.
-         *
-         * Tried 2026-10-10 after a Saros 10R owner described a "two-key" activation
-         * (local_roborock_server issue #18, no bit values given): from 385, writing 8609 (bits 5
-         * and 13 added) was accepted and kept, but pressing Power on the robot within 80 s set
-         * neither bit 2 nor `home_sec_status` / `monitor_status`. The value was put back to 385.
+         * `camera_status` as a Qrevo Curv 2 Flow reports it: 259 with remote viewing off, 8615 once
+         * the cloud activated it. See [CameraStatus] for the bit layout. Bit 2 is set by the robot
+         * itself after a three-button hold and rejects writes; two-key robots are activated by
+         * writing state 1 into bits 12-13 and pressing Power (the robot then sets state 2).
          */
         const val CAMERA_STATUS_OFF = 259
 
@@ -314,8 +361,8 @@ class CameraLiveSession(private val session: VacuumSession) {
         const val NO_CLIENT = "none"
 
         const val PASSWORD_DISABLED_HINT =
-            "This robot reports the camera PIN feature is disabled (-1007). Enable remote viewing " +
-                "for this vacuum once in the manufacturer's own app, then try again here."
+            "The camera PIN is switched off on this robot (-1007) until remote viewing is activated. " +
+                "Activate it here, then draw your pattern."
 
         private fun errorCode(error: JsonObject?): Int? =
             error?.get("code")?.jsonPrimitive?.intOrNull
