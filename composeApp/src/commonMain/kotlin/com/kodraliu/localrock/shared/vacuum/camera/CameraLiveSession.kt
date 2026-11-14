@@ -45,6 +45,7 @@ import kotlinx.serialization.json.put
 import org.kotlincrypto.hash.md.MD5
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.TimeSource
 
 
 @OptIn(ExperimentalEncodingApi::class)
@@ -63,6 +64,14 @@ class CameraLiveSession(private val session: VacuumSession) {
 
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state
+
+    private val pinLock = PinLockPolicy()
+    private val clockStart = TimeSource.Monotonic.markNow()
+    private var pinLockTicker: Job? = null
+    private val _pinLockSeconds = MutableStateFlow(0)
+
+    /** Seconds the PIN prompt stays locked after the robot answered -10010, 0 when open. */
+    val pinLockSeconds: StateFlow<Int> = _pinLockSeconds
 
     private val _peer = MutableStateFlow<RtcPeer?>(null)
     val peer: StateFlow<RtcPeer?> = _peer
@@ -143,19 +152,35 @@ class CameraLiveSession(private val session: VacuumSession) {
     }
 
     private suspend fun registerPin(pin: String) {
-        val passwordMd5 = md5Hex(pin)
-        val first = runCatching { session.setHomesecPassword(passwordMd5) }
-        if (first.isFailure || first.getOrNull()?.error != null) {
-            runCatching { session.resetHomesecPassword() }
-            val retry = session.setHomesecPassword(passwordMd5)
-            if (retry.error != null) {
-                if (errorCode(retry.error) == ERR_PASSWORD_DISABLED) throw ActivationRequired(PASSWORD_DISABLED_HINT)
-                throw IllegalStateException("Robot refused to set the PIN: ${retry.error}")
+        // Never reset the PIN here: the robot answers a reset by switching remote viewing off.
+        val reply = session.setHomesecPassword(md5Hex(pin))
+        val error = reply.error ?: return
+        if (errorCode(error) == ERR_PASSWORD_DISABLED) throw ActivationRequired(PASSWORD_DISABLED_HINT)
+        throw IllegalStateException("Robot refused to set the PIN: $error")
+    }
+
+    private fun nowMs() = clockStart.elapsedNow().inWholeMilliseconds
+
+    private fun lockPin() {
+        pinLock.lock(nowMs())
+        pinLockTicker?.cancel()
+        pinLockTicker = scope.launch {
+            while (true) {
+                val left = pinLock.secondsLeft(nowMs())
+                _pinLockSeconds.value = left
+                if (left == 0) break
+                delay(1_000)
             }
         }
     }
 
     private fun fail(e: Throwable) {
+        if (e is PinLocked) {
+            lockPin()
+            _state.value = State.Idle
+            closePeer()
+            return
+        }
         _state.value = State.Failed(e.message ?: e::class.simpleName ?: "Unknown error", canActivate = e is ActivationRequired)
         closePeer()
     }
@@ -213,6 +238,9 @@ class CameraLiveSession(private val session: VacuumSession) {
         val check = session.checkHomesecPassword(passwordMd5)
         if (check.error != null) {
             if (errorCode(check.error) == ERR_PASSWORD_DISABLED) throw ActivationRequired(PASSWORD_DISABLED_HINT)
+            val code = errorCode(check.error)
+            if (code == PinLockPolicy.ROBOT_CODE) throw PinLocked()
+            if (code == -10009) throw IllegalStateException(CameraStartErrors.fromRobotCode(code).display())
             throw IllegalStateException("PIN check failed: ${check.error}")
         }
         val ok = firstInt(check.result)
@@ -233,30 +261,34 @@ class CameraLiveSession(private val session: VacuumSession) {
         }
 
         _state.value = State.Connecting("Starting camera…")
-        val startResp = session.startCameraPreview(CLIENT_ID, passwordMd5, quality)
-        println("CameraQuality asked=$quality reply=${startResp.result ?: startResp.error}")
-        if (startResp.error != null) {
-            if (errorCode(startResp.error) == ERR_CAMERA_PREVIEW_DENIED) {
+        val startError = CameraStartRetry.run {
+            val resp = session.startCameraPreview(CLIENT_ID, passwordMd5, quality)
+            println("CameraQuality asked=$quality reply=${resp.result ?: resp.error}")
+            if (resp.error == null) CameraStartRetry.Attempt.Ok else CameraStartRetry.Attempt.Refused(errorCode(resp.error))
+        }
+        if (startError != null) {
+            if (startError.appCode == CameraStartErrors.CAMERA_STATUS) {
                 val status = runCatching { firstInt(session.getCameraStatus().result) }.getOrNull()
                 throw ActivationRequired(
                     "Remote viewing is not activated on this robot (-10012, camera_status=" +
                         "${status ?: "unknown"}). Activate it here, then press the button on the robot when asked."
                 )
             }
-            if (errorCode(startResp.error) == ERR_TURN_SERVER_FAILED) throw IllegalStateException(TURN_SERVER_HINT)
-            throw IllegalStateException("Robot refused camera preview: ${startResp.error}")
+            if (startError.appCode == CameraStartErrors.PASSWORD_FREQUENT) throw PinLocked()
+            if (startError.appCode == CameraStartErrors.TURN_FAILED) throw IllegalStateException(TURN_SERVER_HINT)
+            throw IllegalStateException(startError.display())
         }
 
         _state.value = State.Connecting("Negotiating…")
         val iceServers = mutableListOf<RtcIceServer>()
-        runCatching {
-            val turn = firstObject(session.getTurnServer().result) ?: return@runCatching
-            val url = turn["url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
-            iceServers += RtcIceServer(
-                url = url,
-                username = turn["user"]?.jsonPrimitive?.contentOrNull ?: "",
-                password = turn["pwd"]?.jsonPrimitive?.contentOrNull ?: "",
-            )
+        // The robot answers "retry" until it has a relay; the official app asks up to 5 times, 500 ms apart.
+        for (attempt in 1..TURN_ATTEMPTS) {
+            val server = runCatching { turnServerFrom(session.getTurnServer().result) }.getOrNull()
+            if (server != null) {
+                iceServers += server
+                break
+            }
+            if (attempt < TURN_ATTEMPTS) delay(TURN_RETRY_MS)
         }
 
         val peer = createRtcPeer(iceServers)
@@ -351,7 +383,10 @@ class CameraLiveSession(private val session: VacuumSession) {
     /** The robot refused the preview because remote viewing has not been activated on it. */
     private class ActivationRequired(message: String) : IllegalStateException(message)
 
-    private companion object {
+    /** The robot answered -10010: too many wrong PINs. */
+    private class PinLocked : IllegalStateException("PIN locked")
+
+    internal companion object {
         const val ACTIVATION_SECONDS = 60
         const val CLIENT_ID = "7661636c6f63616c"
         val SignalingJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -400,6 +435,20 @@ class CameraLiveSession(private val session: VacuumSession) {
                 sb.append("0123456789abcdef"[v and 0x0f])
             }
             return sb.toString()
+        }
+
+        const val TURN_ATTEMPTS = 5
+        const val TURN_RETRY_MS = 500L
+
+        /** The relay in a `get_turn_server` answer, or null while the robot still says "retry" or sends no address. */
+        fun turnServerFrom(result: JsonElement?): RtcIceServer? {
+            val turn = firstObject(result) ?: return null
+            val url = turn["url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() && it != "retry" } ?: return null
+            return RtcIceServer(
+                url = url,
+                username = turn["user"]?.jsonPrimitive?.contentOrNull ?: "",
+                password = turn["pwd"]?.jsonPrimitive?.contentOrNull ?: "",
+            )
         }
 
         fun firstObject(result: JsonElement?): JsonObject? = when (result) {

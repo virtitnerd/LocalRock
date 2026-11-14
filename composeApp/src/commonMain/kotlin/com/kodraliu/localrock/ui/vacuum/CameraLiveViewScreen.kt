@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kodraliu.localrock.ui.rememberMicrophonePermissionRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -81,6 +82,7 @@ fun CameraLiveViewScreen(
     val liveSession = remember { viewModel.cameraSession() }
     val state by liveSession.state.collectAsState()
     val peer by liveSession.peer.collectAsState()
+    val pinLockSeconds by liveSession.pinLockSeconds.collectAsState()
 
     var pin by remember { mutableStateOf(container.appSettings.cameraPin(duid) ?: "") }
     var autoStarted by remember { mutableStateOf(false) }
@@ -88,6 +90,7 @@ fun CameraLiveViewScreen(
     var micOn by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf<CameraPanel?>(null) }
     var gearOpen by remember { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(true) }
     val robotStatus by viewModel.repository.status.collectAsState()
     val petSearch by viewModel.repository.petSearchActive.collectAsState()
     val scope = rememberCoroutineScope()
@@ -152,8 +155,10 @@ fun CameraLiveViewScreen(
 
             when (val s = state) {
                 is CameraLiveSession.State.Idle -> {
+                    LaunchedEffect(pinLockSeconds > 0) { if (pinLockSeconds > 0) pin = "" }
                     PinEntry(
                         pin = pin,
+                        lockSeconds = pinLockSeconds,
                         onPinChange = { pin = it },
                         onConnect = {
                             container.appSettings.setCameraPin(duid, pin)
@@ -197,11 +202,17 @@ fun CameraLiveViewScreen(
 
                 is CameraLiveSession.State.Streaming -> {
                     peer?.let { RtcVideoView(it, Modifier.fillMaxSize()) }
-                    CameraJoystick(
+                    Box(
+                        Modifier.fillMaxSize().clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { controlsVisible = !controlsVisible },
+                    )
+                    if (controlsVisible) CameraJoystick(
                         viewModel,
                         Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 24.dp, bottom = 24.dp),
                     )
-                    CameraSidePanel(
+                    if (controlsVisible) CameraSidePanel(
                         viewModel,
                         panel,
                         { panel = it },
@@ -212,7 +223,7 @@ fun CameraLiveViewScreen(
                         Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp, bottom = 12.dp),
                     )
                     val stats by (peer?.stats ?: noStats).collectAsState()
-                    Column(
+                    if (controlsVisible) Column(
                         Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -266,7 +277,7 @@ fun CameraLiveViewScreen(
 
             if (gearOpen) CallSettingsDialog(viewModel) { gearOpen = false }
 
-            Row(
+            if (controlsVisible || state !is CameraLiveSession.State.Streaming) Row(
                 Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp, start = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -334,6 +345,7 @@ private fun RoundButton(icon: ImageVector, description: String, background: Colo
 @Composable
 private fun PinEntry(
     pin: String,
+    lockSeconds: Int,
     onPinChange: (String) -> Unit,
     onConnect: () -> Unit,
     onSetPinOnRobot: () -> Unit,
@@ -359,7 +371,14 @@ private fun PinEntry(
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
         )
-        if (typed) {
+        if (lockSeconds > 0) {
+            Text(
+                "Too many wrong attempts. Retry after ${lockSeconds}s",
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.titleSmall,
+            )
+        } else if (typed) {
             OutlinedTextField(
                 value = pin,
                 onValueChange = onPinChange,
@@ -378,8 +397,8 @@ private fun PinEntry(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        Button(onClick = onConnect, enabled = pin.isNotBlank()) { Text("Start live view") }
-        TextButton(onClick = onSetPinOnRobot, enabled = pin.isNotBlank()) {
+        Button(onClick = onConnect, enabled = pin.isNotBlank() && lockSeconds == 0) { Text("Start live view") }
+        TextButton(onClick = onSetPinOnRobot, enabled = pin.isNotBlank() && lockSeconds == 0) {
             Text("Set as new PIN on robot", color = Color.White)
         }
         TextButton(
