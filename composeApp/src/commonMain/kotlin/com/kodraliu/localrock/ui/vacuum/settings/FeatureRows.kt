@@ -6,12 +6,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.GridView
@@ -19,16 +16,10 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,11 +33,12 @@ import com.kodraliu.localrock.shared.vacuum.FeatureChoice
 import com.kodraliu.localrock.shared.vacuum.choiceLabelFor
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.ui.AppColors
-import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import com.kodraliu.localrock.ui.components.SettingRowSwitch
 import com.kodraliu.localrock.ui.components.SettingRowClickable
 import androidx.compose.runtime.collectAsState
 import com.kodraliu.localrock.shared.vacuum.inSection
+import com.kodraliu.localrock.ui.components.SettingGroup
+import com.kodraliu.localrock.ui.strings.SettingsStrings
 
 /** One feature the robot reports, as a switch under the page it belongs to. */
 @Composable
@@ -138,53 +130,43 @@ private fun ChoicePickerDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Floor Cleaning Setting: the robot's floor rows in the official groups, one card each. */
 @Composable
-internal fun FeatureSectionScreen(
-    title: String,
-    features: List<BetaFeatureState>,
-    onToggle: (String, Boolean) -> Unit,
-    onBack: () -> Unit,
-    onChoice: (String, Int) -> Unit = { _, _ -> },
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
-        },
-    ) { padding ->
-        CenteredContent {
-            LazyColumn(contentPadding = padding) {
-                items(features, key = { it.def.id }) { f ->
-                    FeatureToggleRow(f, onToggle, onChoice)
-                    HorizontalDivider(Modifier.padding(start = 72.dp))
-                }
-            }
+fun VacuumFloorSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
+    val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
+    LoadFeatureRowsOnEntry(viewModel)
+    val onToggle: (String, Boolean) -> Unit = { id, on -> viewModel.report { it.setBetaFeature(id, on) } }
+    val onChoice: (String, Int) -> Unit = { id, value -> viewModel.report { it.setBetaChoice(id, value) } }
+    SettingsPage(title = SettingsStrings.FLOOR, onBack = onBack) {
+        floorFeatureGroups(betaFeatures).forEach { group ->
+            item(key = group.first().def.id) { FeatureCard(group, onToggle, onChoice) }
         }
     }
 }
 
-@Composable
-fun VacuumFloorSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
-    val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
-    FeatureSectionScreen(
-        title = "Floor cleaning",
-        features = betaFeatures.inSection(FeatureSection.FLOOR),
-        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-        onChoice = { id, value -> viewModel.report { it.setBetaChoice(id, value) } },
-        onBack = onBack,
-    )
-}
-
+/** Reactive Obstacle Avoidance: collision rows first, as the official page orders them. */
 @Composable
 fun VacuumObstacleSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
     val betaFeatures by viewModel.repository.betaFeatures.collectAsState()
-    FeatureSectionScreen(
-        title = "Obstacle avoidance",
-        features = betaFeatures.inSection(FeatureSection.OBSTACLE),
-        onToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
-        onBack = onBack,
-    )
+    LoadFeatureRowsOnEntry(viewModel)
+    val rows = betaFeatures.inSection(FeatureSection.OBSTACLE)
+        .sortedBy { listOf("avoid_collision", "follow_low_obstacles").indexOf(it.def.id).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+    SettingsPage(title = SettingsStrings.OBSTACLE, onBack = onBack) {
+        if (rows.isNotEmpty()) item { FeatureCard(rows, { id, on -> viewModel.report { it.setBetaFeature(id, on) } }) }
+    }
+}
+
+/** A card of feature rows with dividers between them. */
+@Composable
+internal fun FeatureCard(
+    rows: List<BetaFeatureState>,
+    onToggle: (String, Boolean) -> Unit,
+    onChoice: (String, Int) -> Unit = { _, _ -> },
+) {
+    SettingGroup {
+        rows.forEachIndexed { i, f ->
+            if (i > 0) RowDivider()
+            FeatureToggleRow(f, onToggle, onChoice)
+        }
+    }
 }
