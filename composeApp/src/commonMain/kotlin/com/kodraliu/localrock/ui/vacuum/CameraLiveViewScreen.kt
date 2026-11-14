@@ -2,6 +2,7 @@ package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
 import com.kodraliu.localrock.shared.vacuum.startVoiceChat
 import com.kodraliu.localrock.shared.vacuum.stopVoiceChat
 import androidx.compose.material.icons.filled.Call
@@ -73,12 +74,10 @@ import com.kodraliu.localrock.ui.LocalAppContainer
 fun CameraLiveViewScreen(
     viewModel: VacuumViewModel,
     onBack: () -> Unit,
-    onPinGo: () -> Unit = {},
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
     val liveSession = remember { viewModel.cameraSession() }
-    var keepAlive by remember { mutableStateOf(false) }
     val state by liveSession.state.collectAsState()
     val peer by liveSession.peer.collectAsState()
 
@@ -86,6 +85,8 @@ fun CameraLiveViewScreen(
     var autoStarted by remember { mutableStateOf(false) }
     var quality by remember { mutableStateOf(liveSession.quality) }
     var micOn by remember { mutableStateOf(false) }
+    var pinGoOpen by remember { mutableStateOf(false) }
+    val robotStatus by viewModel.repository.status.collectAsState()
     val scope = rememberCoroutineScope()
     val askMic = rememberMicrophonePermissionRequest { granted ->
         if (granted) {
@@ -98,9 +99,14 @@ fun CameraLiveViewScreen(
     LandscapeWhile(liveViewSupported)
 
     DisposableEffect(Unit) {
+        viewModel.repository.setLiveMapRate(true)
+        onDispose { viewModel.repository.setLiveMapRate(false) }
+    }
+
+    DisposableEffect(Unit) {
         onDispose {
             if (micOn) viewModel.viewModelScope.launch { runCatching { viewModel.repository.session.stopVoiceChat() } }
-            if (!keepAlive) viewModel.closeCamera()
+            viewModel.closeCamera()
         }
     }
 
@@ -192,20 +198,25 @@ fun CameraLiveViewScreen(
                         viewModel,
                         Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 24.dp, bottom = 24.dp),
                     )
-                    CameraMiniMap(
+                    CameraSidePanel(
                         viewModel,
-                        {
-                            if (micOn) {
-                                micOn = false
-                                peer?.setMicEnabled(false)
-                                scope.launch { runCatching { viewModel.repository.session.stopVoiceChat() } }
-                            }
-                            keepAlive = true
-                            onPinGo()
-                        },
-                        Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp),
+                        pinGoOpen,
+                        { pinGoOpen = it },
+                        if (viewModel.supportsPetSearch) {
+                            { viewModel.run("Looking for your pet") { it.startPetSearch() } }
+                        } else null,
+                        Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp, bottom = 12.dp),
                     )
                     val stats by (peer?.stats ?: noStats).collectAsState()
+                    Column(
+                        Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                    Text(
+                        robotStatus.state?.let { VacuumStateCodes.describe(it) } ?: "",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     StatsChip(
                         stats,
                         quality,
@@ -213,8 +224,9 @@ fun CameraLiveViewScreen(
                             quality = q
                             liveSession.restartWithQuality(pin, q)
                         },
-                        modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp),
+                        modifier = Modifier,
                     )
+                    }
                 }
 
                 is CameraLiveSession.State.Failed -> {
