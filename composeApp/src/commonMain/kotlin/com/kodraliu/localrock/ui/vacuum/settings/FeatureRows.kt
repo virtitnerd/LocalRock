@@ -43,6 +43,8 @@ import com.kodraliu.localrock.shared.vacuum.choiceLabelFor
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import com.kodraliu.localrock.ui.components.SettingRowClickable
 
 /** One feature the robot reports, as a switch under the page it belongs to. */
 @Composable

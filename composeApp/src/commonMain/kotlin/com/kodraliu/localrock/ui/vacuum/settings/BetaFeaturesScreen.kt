@@ -36,6 +36,7 @@ import com.kodraliu.localrock.shared.vacuum.AdvertisedFeature
 import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
 
 private const val BETA_FEATURES_ISSUE_URL = "https://github.com/DonSidro/LocalRock/issues/55"
 

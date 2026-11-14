@@ -59,6 +59,8 @@ import com.kodraliu.localrock.shared.vacuum.FloorMap
 import com.kodraliu.localrock.shared.vacuum.mapNameBlocker
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import kotlin.coroutines.cancellation.CancellationException
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import androidx.compose.foundation.layout.PaddingValues
 
 @Composable
 internal fun MapsSheetContent(
@@ -142,19 +144,21 @@ internal fun MapsSheetContent(
         }
 
         if (multiLevel != null) {
-            SettingSwitchRow(
+            SettingRowSwitch(
                 title = "Multi-level maps",
                 subtitle = "Keep up to one map per floor. Turning this off keeps one map and deletes the rest.",
                 checked = multiLevel,
                 enabled = canManage,
+                padding = PaddingValues(0.dp),
                 onCheckedChange = onMultiLevelChange,
             )
             if (multiLevel && smartSwitching != null) {
-                SettingSwitchRow(
+                SettingRowSwitch(
                     title = "Recognise the floor automatically",
                     subtitle = "Off: you pick the map before cleaning another floor.",
                     checked = smartSwitching,
                     enabled = canManage,
+                    padding = PaddingValues(0.dp),
                     onCheckedChange = onSmartSwitchingChange,
                 )
             }
@@ -303,23 +307,6 @@ internal fun RenameMapDialog(floor: FloorMap, onConfirm: (String) -> Unit, onDis
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
-}
-
-@Composable
-private fun SettingSwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
-    }
 }
 
 /** Turning multi-level maps off keeps one map; the robot deletes the others (captured). */

@@ -47,6 +47,9 @@ import com.kodraliu.localrock.shared.vacuum.labelFor
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.PickerDialog
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import com.kodraliu.localrock.ui.components.SettingRowClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,7 +218,7 @@ internal fun DockSettingsScreen(
     }
 
     when (dialogTarget) {
-        "wash_freq" -> SimplePickerDialog(
+        "wash_freq" -> PickerDialog(
             title = "Mop wash frequency",
             options = washFrequencyOptions.map { it.label },
             selected = washFrequencyIndex,
@@ -227,7 +230,7 @@ internal fun DockSettingsScreen(
             enabled = washFrequencyEnabled,
             onDismiss = { dialogTarget = null },
         )
-        "wash_mode" -> SimplePickerDialog(
+        "wash_mode" -> PickerDialog(
             title = "Washing mode",
             options = washModes.map { it.second },
             selected = washModeIndex,
@@ -235,7 +238,7 @@ internal fun DockSettingsScreen(
             enabled = washModeEnabled,
             onDismiss = { dialogTarget = null },
         )
-        "wash_temp" -> SimplePickerDialog(
+        "wash_temp" -> PickerDialog(
             title = "Washing water temperature",
             options = DockOptions.washWaterTemperature.map { it.label },
             selected = DockOptions.washWaterTemperature.indexOfFirst { it.code == dockSettings.washWaterTemperature },
@@ -243,7 +246,7 @@ internal fun DockSettingsScreen(
             enabled = !busy,
             onDismiss = { dialogTarget = null },
         )
-        "dry_time" -> SimplePickerDialog(
+        "dry_time" -> PickerDialog(
             title = "Drying time",
             options = dryTimeOptions.map { it.label },
             selected = dryTimeOptions.indexOfFirst { it.code == dockSettings.dryTimeSeconds },
@@ -251,7 +254,7 @@ internal fun DockSettingsScreen(
             enabled = !busy,
             onDismiss = { dialogTarget = null },
         )
-        "auto_empty" -> SimplePickerDialog(
+        "auto_empty" -> PickerDialog(
             title = "Auto-empty mode",
             options = autoEmptyModes.map { it.second },
             selected = autoEmptyModes.indexOfFirst { it.first == dockSettings.autoEmptyMode },

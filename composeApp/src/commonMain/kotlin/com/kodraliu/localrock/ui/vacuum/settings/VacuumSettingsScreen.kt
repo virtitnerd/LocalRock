@@ -45,6 +45,8 @@ import com.kodraliu.localrock.ui.adaptive.CenteredContent
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import com.kodraliu.localrock.ui.components.SettingRowInfo
+import com.kodraliu.localrock.ui.components.SettingsCategoryRow
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 

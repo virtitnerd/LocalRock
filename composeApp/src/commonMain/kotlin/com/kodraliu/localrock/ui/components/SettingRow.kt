@@ -1,27 +1,21 @@
-package com.kodraliu.localrock.ui.vacuum
+package com.kodraliu.localrock.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,8 +24,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
+/** Padding of one settings row inside a list. */
+val SettingRowPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+
+/** The tinted rounded square that leads every settings row. */
 @Composable
-internal fun SettingsCategoryRow(
+fun SettingIconTile(icon: ImageVector, tint: Color) {
+    Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), tint) }
+    }
+}
+
+/** A row that opens a page: icon, title, subtitle and a chevron. */
+@Composable
+fun SettingsCategoryRow(
     icon: ImageVector,
     iconTint: Color,
     title: String,
@@ -42,19 +48,11 @@ internal fun SettingsCategoryRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(SettingRowPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = iconTint.copy(alpha = 0.12f),
-                modifier = Modifier.size(44.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, Modifier.size(22.dp), iconTint)
-                }
-            }
+            SettingIconTile(icon, iconTint)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(
@@ -72,41 +70,9 @@ internal fun SettingsCategoryRow(
     }
 }
 
+/** A row that opens a picker or runs an action; dimmed when disabled. */
 @Composable
-internal fun SimplePickerDialog(
-    title: String,
-    options: List<String>,
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    enabled: Boolean = true,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                options.forEachIndexed { index, option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = index == selected, enabled = enabled, onClick = { onSelect(index) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(option, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-@Composable
-internal fun SettingRowClickable(
+fun SettingRowClickable(
     icon: ImageVector,
     iconTint: Color,
     title: String,
@@ -116,13 +82,11 @@ internal fun SettingRowClickable(
 ) {
     Surface(onClick = onClick, enabled = enabled, color = Color.Transparent) {
         Row(
-            modifier = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f).padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f).padding(SettingRowPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = iconTint.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
-                Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), iconTint) }
-            }
+            SettingIconTile(icon, iconTint)
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -132,8 +96,9 @@ internal fun SettingRowClickable(
     }
 }
 
+/** A read-only row: title over a value, with an optional supporting line. */
 @Composable
-internal fun SettingRowInfo(
+fun SettingRowInfo(
     icon: ImageVector,
     iconTint: Color,
     title: String,
@@ -141,13 +106,11 @@ internal fun SettingRowInfo(
     valueSupporting: String? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().padding(SettingRowPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Surface(shape = RoundedCornerShape(12.dp), color = iconTint.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
-            Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), iconTint) }
-        }
+        SettingIconTile(icon, iconTint)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -158,24 +121,24 @@ internal fun SettingRowInfo(
     }
 }
 
+/** A switch row. Without [icon] it has no leading tile; [padding] lets a row sit inside an already padded block. */
 @Composable
-internal fun SettingRowSwitch(
-    icon: ImageVector,
-    iconTint: Color,
+fun SettingRowSwitch(
+    icon: ImageVector? = null,
+    iconTint: Color = Color.Unspecified,
     title: String,
     subtitle: String,
     checked: Boolean,
     enabled: Boolean = true,
+    padding: PaddingValues = SettingRowPadding,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().padding(padding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Surface(shape = RoundedCornerShape(12.dp), color = iconTint.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
-            Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(22.dp), iconTint) }
-        }
+        if (icon != null) SettingIconTile(icon, iconTint)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

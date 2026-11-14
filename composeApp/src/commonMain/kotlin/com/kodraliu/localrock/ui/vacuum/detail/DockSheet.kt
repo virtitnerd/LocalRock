@@ -54,6 +54,7 @@ import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
 import com.kodraliu.localrock.shared.vacuum.VacuumStatus
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.ui.AppColors
+import com.kodraliu.localrock.ui.components.PickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,27 +235,27 @@ private fun DockSettingsTab(
     }
 
     when (dialogTarget) {
-        "wash_freq" -> RadioPickerDialog(
+        "wash_freq" -> PickerDialog(
             title = "Mop wash frequency",
             options = washFrequencyOptions.map { it.label },
             selected = washFrequencyIndex,
-            onSelect = { washFrequencyOptions[it].let { option -> onWashFrequencyChange(option.mode, option.intervalMinutes) } },
+            onSelect = { washFrequencyOptions[it].let { option -> onWashFrequencyChange(option.mode, option.intervalMinutes) }; dialogTarget = null },
             enabled = washFrequencyEnabled,
             onDismiss = { dialogTarget = null },
         )
-        "wash_mode" -> RadioPickerDialog(
+        "wash_mode" -> PickerDialog(
             title = "Washing mode",
             options = washModes.map { it.second },
             selected = washModeIndex,
-            onSelect = { onWashModeChange(washModes[it].first) },
+            onSelect = { onWashModeChange(washModes[it].first); dialogTarget = null },
             enabled = washModeEnabled,
             onDismiss = { dialogTarget = null },
         )
-        "auto_empty" -> RadioPickerDialog(
+        "auto_empty" -> PickerDialog(
             title = "Auto-empty mode",
             options = autoEmptyModes.map { it.second },
             selected = autoEmptyModes.indexOfFirst { it.first == dockSettings.autoEmptyMode },
-            onSelect = { onAutoEmptyModeChange(autoEmptyModes[it].first) },
+            onSelect = { onAutoEmptyModeChange(autoEmptyModes[it].first); dialogTarget = null },
             enabled = autoEmptyEnabled,
             onDismiss = { dialogTarget = null },
         )
@@ -275,24 +276,4 @@ private fun DockSettingCard(modifier: Modifier, icon: ImageVector, iconTint: Col
             }
         }
     }
-}
-
-@Composable
-private fun RadioPickerDialog(title: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit, enabled: Boolean, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                options.forEachIndexed { index, label ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                        RadioButton(selected = selected == index, enabled = enabled, onClick = { onSelect(index); onDismiss() })
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
 }

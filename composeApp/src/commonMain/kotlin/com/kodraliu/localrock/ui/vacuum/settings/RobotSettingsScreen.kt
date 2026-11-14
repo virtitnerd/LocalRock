@@ -32,6 +32,9 @@ import com.kodraliu.localrock.shared.vacuum.volumeLabel
 import com.kodraliu.localrock.shared.vacuum.volumeLevelIndex
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.PickerDialog
+import com.kodraliu.localrock.ui.components.SettingRowSwitch
+import com.kodraliu.localrock.ui.components.SettingRowClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +115,7 @@ internal fun RobotSettingsScreen(
     }
 
     if (showVolumeDialog) {
-        SimplePickerDialog(
+        PickerDialog(
             title = "Volume",
             options = VolumeLevels.map { it.second },
             selected = volumeLevelIndex(robotSettings.volume),

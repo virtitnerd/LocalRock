@@ -24,6 +24,8 @@ import com.kodraliu.localrock.shared.vacuum.BetaFeatureState
 import com.kodraliu.localrock.shared.vacuum.carpetModeOptions
 import com.kodraliu.localrock.ui.AppColors
 import com.kodraliu.localrock.ui.adaptive.CenteredContent
+import com.kodraliu.localrock.ui.components.PickerDialog
+import com.kodraliu.localrock.ui.components.SettingRowClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +65,7 @@ internal fun CarpetScreen(
         }
     }
     if (showDialog) {
-        SimplePickerDialog(
+        PickerDialog(
             title = "Carpet mode",
             options = options,
             selected = carpetMode,
