@@ -35,9 +35,14 @@ data class VacuumStatus(
      * washing the mop), which is how the end of a job is told from a pause in it.
      */
     @SerialName("in_cleaning") val inCleaning: Int? = null,
+    /** Bits 3 and 4 hold the patrol kind in the official app: 2 is a pet patrol. */
+    @SerialName("common_status") val commonStatus: Int? = null,
     /** How far through the current job the robot says it is, 0..100. */
     @SerialName("clean_percent") val cleanPercent: Int? = null,
 ) {
+    /** True when the status itself says the patrol is a pet search. */
+    val isPetPatrol: Boolean get() = commonStatus?.let { ((it shr 3) and 3) == 2 } == true
+
     val multiLevelEnabled: Boolean? get() = labStatus?.let { it and LAB_STATUS_MULTI_LEVEL != 0 }
 
     /** False on a robot that will not store a map: it refuses manual_segment_map (issue #17). */
@@ -117,6 +122,9 @@ object VacuumStateCodes {
     const val RETURNING_TO_DOCK_FOR_DRYING = 28
     /** Captured 2026-09-29: the robot reports 29 for the whole app_start_build_map run. */
     const val MAPPING = 29
+
+    /** Reported while the robot patrols with its camera: the pet search and Cruise. */
+    const val PATROLLING = 32
     const val CHARGING_COMPLETE = 100
 
     fun describe(state: Int): String = when (state) {
@@ -130,6 +138,7 @@ object VacuumStateCodes {
         CHARGING -> "Charging"
         CHARGING_ERROR -> "Charging error"
         PAUSED -> "Paused"
+        PATROLLING -> "On cruise"
         SPOT_CLEANING -> "Spot cleaning"
         ERROR -> "Error"
         SHUTTING_DOWN -> "Shutting down"

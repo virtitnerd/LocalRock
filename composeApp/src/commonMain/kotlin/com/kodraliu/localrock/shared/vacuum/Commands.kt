@@ -276,6 +276,16 @@ suspend fun VacuumSession.startVoiceChat(play: Boolean, record: Boolean): V1Resp
 
 suspend fun VacuumSession.stopVoiceChat(): V1Response = sendCommand("stop_voice_chat")
 
+/** Cruise: the robot drives through [points] (robot millimetres) on map [mapIndex] with its camera on. */
+suspend fun VacuumSession.startPatrol(mapIndex: Int, points: List<Pair<Int, Int>>): V1Response =
+    sendCommandRaw("app_start_patrol", JsonObject(mapOf(
+        "map_index" to JsonPrimitive(mapIndex),
+        "points" to JsonArray(points.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.second))) }),
+    )))
+
+suspend fun VacuumSession.setVoiceChatVolume(volume: Int): V1Response =
+    sendCommandRaw("set_voice_chat_volume", JsonObject(mapOf("volume" to JsonPrimitive(volume))))
+
 suspend fun VacuumSession.stopCameraPreview(clientIdHex: String): V1Response =
     sendCommandRaw("stop_camera_preview", JsonObject(mapOf("client_id" to JsonPrimitive(clientIdHex))))
 

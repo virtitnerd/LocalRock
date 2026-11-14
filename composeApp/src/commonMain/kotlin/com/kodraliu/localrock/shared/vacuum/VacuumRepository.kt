@@ -172,6 +172,23 @@ class VacuumRepository(
     val unsavedMapPresent: StateFlow<Boolean> = _status.map { it.unsavedMapPresent }
         .stateIn(scope, SharingStarted.Eagerly, false)
     private var pollJob: Job? = null
+
+    init {
+        // The flag lives from the start of the pet search until the robot has patrolled and stopped.
+        scope.launch {
+            var seenPatrolling = false
+            _status.collect {
+                if (it.state == VacuumStateCodes.PATROLLING) {
+                    if (!seenPatrolling) println("[VacLocal] patrol started: common_status=${it.commonStatus} petPatrol=${it.isPetPatrol}")
+                    seenPatrolling = true
+                }
+                else if (seenPatrolling) {
+                    seenPatrolling = false
+                    _petSearchActive.value = false
+                }
+            }
+        }
+    }
     private var dpsJob: Job? = null
     private var mapPollJob: Job? = null
     private var floorSwitchRefreshJob: Job? = null
@@ -529,7 +546,15 @@ class VacuumRepository(
 
     suspend fun findMe() { session.findMe() }
 
-    suspend fun startPetSearch() { session.startPetSearch().requireOk("app_start_pet_patrol") }
+    private val _petSearchActive = MutableStateFlow(false)
+
+    /** True while a patrol that this app started as a pet search is running, so it can say "Searching for pets". */
+    val petSearchActive: StateFlow<Boolean> = _petSearchActive
+
+    suspend fun startPetSearch() {
+        session.startPetSearch().requireOk("app_start_pet_patrol")
+        _petSearchActive.value = true
+    }
 
     suspend fun fetchOtaState(): String? = parseOtaState(session.getOtaState().requireOk("get_ota_state").result)
 
@@ -551,6 +576,13 @@ class VacuumRepository(
     suspend fun stopRemoteControl() { session.appRcEnd() }
 
     /** Sends the robot to ([x], [y]) in robot millimetres. A refusal is raised, not ignored. */
+    suspend fun startPatrol(points: List<Pair<Int, Int>>) {
+        session.startPatrol(currentFloorFlag.value, points).requireOk("app_start_patrol")
+        _petSearchActive.value = false
+    }
+
+    suspend fun setCallVolume(volume: Int) { session.setVoiceChatVolume(volume).requireOk("set_voice_chat_volume") }
+
     suspend fun gotoTarget(x: Int, y: Int) { session.appGotoTarget(x, y).requireOk("app_goto_target") }
 
     suspend fun cleanZones(zones: List<ZoneRect>) { session.appZonedClean(zones).requireOk("app_zoned_clean") }
@@ -1682,6 +1714,7 @@ class VacuumRepository(
             VacuumStateCodes.ZONED_CLEANING,
             VacuumStateCodes.SEGMENT_CLEANING,
             VacuumStateCodes.MAPPING,
+            VacuumStateCodes.PATROLLING,
         )
     }
 }

@@ -2,6 +2,7 @@ package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -138,16 +139,17 @@ fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
 @Composable
 fun CameraSidePanel(
     viewModel: VacuumViewModel,
-    pinGoOpen: Boolean,
-    onPinGoChange: (Boolean) -> Unit,
+    panel: CameraPanel?,
+    onPanelChange: (CameraPanel?) -> Unit,
     onPet: (() -> Unit)?,
+    cruiseSupported: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val map by viewModel.repository.parsedMap.collectAsState()
     val status by viewModel.repository.status.collectAsState()
     val parsed = map ?: return
-    if (pinGoOpen) {
-        PinGoPanel(viewModel, parsed, { onPinGoChange(false) }, modifier)
+    if (panel != null) {
+        MapPickPanel(viewModel, parsed, panel == CameraPanel.CRUISE, { onPanelChange(null) }, modifier)
         return
     }
     val state = status.state
@@ -180,7 +182,14 @@ fun CameraSidePanel(
             PanelButton("Dock", Modifier.fillMaxWidth()) { viewModel.run { it.dock() } }
         } else {
             if (state == VacuumStateCodes.PAUSED) PanelButton("Resume", Modifier.fillMaxWidth()) { viewModel.run { it.resumeCleaning() } }
-            PanelButton("Pin n Go", Modifier.fillMaxWidth()) { onPinGoChange(true) }
+            if (cruiseSupported) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PanelButton("Pin n Go", Modifier.weight(1f)) { onPanelChange(CameraPanel.PIN_GO) }
+                    PanelButton("Cruise", Modifier.weight(1f)) { onPanelChange(CameraPanel.CRUISE) }
+                }
+            } else {
+                PanelButton("Pin n Go", Modifier.fillMaxWidth()) { onPanelChange(CameraPanel.PIN_GO) }
+            }
             if (onPet != null) PanelButton("Search for the Pet", Modifier.fillMaxWidth(), onPet)
         }
     }
@@ -202,10 +211,12 @@ private fun PanelButton(text: String, modifier: Modifier = Modifier, onClick: ()
     )
 }
 
-/** Pick a spot in a room on a bigger map and send the robot there without leaving the camera. */
+enum class CameraPanel { PIN_GO, CRUISE }
+
+/** Pick a spot (Pin n Go) or several (Cruise) in the rooms of a bigger map, without leaving the camera. */
 @Composable
-private fun PinGoPanel(viewModel: VacuumViewModel, parsed: ParsedMap, onClose: () -> Unit, modifier: Modifier) {
-    var tap by remember { mutableStateOf<Offset?>(null) }
+private fun MapPickPanel(viewModel: VacuumViewModel, parsed: ParsedMap, cruise: Boolean, onClose: () -> Unit, modifier: Modifier) {
+    val taps = remember { mutableStateListOf<Offset>() }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val bitmap = rememberMapBitmap(parsed)
     Column(
@@ -218,20 +229,31 @@ private fun PinGoPanel(viewModel: VacuumViewModel, parsed: ParsedMap, onClose: (
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            Icons.Default.Close,
-            contentDescription = "Close",
-            tint = Color.White,
-            modifier = Modifier.align(Alignment.End).size(32.dp).clip(CircleShape).clickable(onClick = onClose).padding(6.dp),
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (cruise) "Tap rooms to add stops" else "Tap a room to pick a spot",
+                color = Color.White.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Close",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onClose).padding(6.dp),
+            )
+        }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Canvas(
                 Modifier
                     .aspectRatio(parsed.width.toFloat() / parsed.height.toFloat())
                     .onSizeChanged { size = it }
-                    .pointerInput(parsed) {
+                    .pointerInput(parsed, cruise) {
                         detectTapGestures { offset ->
-                            if (parsed.isRoomFloorAt(offset, size.width.toFloat(), size.height.toFloat())) tap = offset
+                            if (parsed.isRoomFloorAt(offset, size.width.toFloat(), size.height.toFloat())) {
+                                if (!cruise) taps.clear()
+                                taps.add(offset)
+                            }
                         }
                     },
             ) {
@@ -243,26 +265,36 @@ private fun PinGoPanel(viewModel: VacuumViewModel, parsed: ParsedMap, onClose: (
                     dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt()),
                     filterQuality = FilterQuality.None,
                 )
-                tap?.let { tp ->
-                    drawCircle(color = Color(0xFFE53935).copy(alpha = 0.9f), radius = 20f, center = tp)
-                    drawCircle(color = Color.White, radius = 8f, center = tp)
+                taps.zipWithNext().forEach { (a, b) ->
+                    drawLine(Color.White.copy(alpha = 0.85f), a, b, strokeWidth = 4f)
+                }
+                taps.forEachIndexed { i, tp ->
+                    drawCircle(color = Color(0xFFE53935).copy(alpha = 0.9f), radius = if (i == 0) 24f else 20f, center = tp)
+                    drawCircle(color = Color.White, radius = if (i == 0) 10f else 8f, center = tp)
                 }
             }
         }
-        Text(
-            "Go",
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(if (tap != null) Color(0xFF1E6FFF) else Color.White.copy(alpha = 0.18f))
-                .clickable(enabled = tap != null) {
-                    val tp = tap ?: return@clickable
-                    val (x, y) = parsed.canvasToMm(tp, size.width.toFloat(), size.height.toFloat())
-                    viewModel.run { it.gotoTarget(x, y) }
-                    onClose()
-                }
-                .padding(horizontal = 44.dp, vertical = 10.dp),
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (cruise) {
+                PanelButton("Undo", Modifier.weight(1f)) { if (taps.isNotEmpty()) taps.removeAt(taps.lastIndex) }
+            }
+            Text(
+                if (cruise) "Start" else "Go",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(CircleShape)
+                    .background(if (taps.isNotEmpty()) Color(0xFF1E6FFF) else Color.White.copy(alpha = 0.18f))
+                    .clickable(enabled = taps.isNotEmpty()) {
+                        val points = taps.map { parsed.canvasToMm(it, size.width.toFloat(), size.height.toFloat()) }
+                        if (cruise) viewModel.run("Starting the cruise") { it.startPatrol(points) }
+                        else viewModel.run { it.gotoTarget(points.first().first, points.first().second) }
+                        onClose()
+                    }
+                    .padding(vertical = 10.dp),
+            )
+        }
     }
 }
