@@ -11,7 +11,7 @@ package com.kodraliu.localrock.shared.webrtc
  * The audio-first order and the directions come from how the peer's transceivers are added; this function removes
  * the codecs and the attribute. A section it cannot make sense of is returned unchanged.
  */
-fun shapeOfferForRobot(sdp: String): String {
+fun shapeOfferForRobot(sdp: String, keepVp8Vp9: Boolean = false): String {
     val eol = if (sdp.contains("\r\n")) "\r\n" else "\n"
     val lines = sdp.split(Regex("\r?\n")).filter { it.isNotEmpty() }
     val sections = mutableListOf(mutableListOf<String>())
@@ -23,7 +23,7 @@ fun shapeOfferForRobot(sdp: String): String {
         when {
             index == 0 -> section.filterNot { it.trim() == "a=extmap-allow-mixed" }
             section.first().startsWith("m=audio") -> keepPayloads(section) { audioKeep(it) }
-            section.first().startsWith("m=video") -> keepPayloads(section) { videoKeep(it) }
+            section.first().startsWith("m=video") -> keepPayloads(section) { videoKeep(it, keepVp8Vp9) }
             else -> section
         }
     }
@@ -49,10 +49,12 @@ private fun payloads(section: List<String>): List<Payload> {
 private fun audioKeep(all: List<Payload>): Set<String> =
     all.filter { it.name.equals("opus", true) || it.name.equals("telephone-event", true) }.map { it.type }.toSet()
 
-private fun videoKeep(all: List<Payload>): Set<String> {
+private fun videoKeep(all: List<Payload>, keepVp8Vp9: Boolean): Set<String> {
     val h264 = all.filter { it.name.equals("H264", true) && "packetization-mode=1" in it.fmtp }.map { it.type }.toSet()
     if (h264.isEmpty()) return emptySet()
-    val base = h264 + all.filter { it.name.equals("red", true) || it.name.equals("ulpfec", true) }.map { it.type }
+    val extra = if (keepVp8Vp9) setOf("vp8", "vp9") else emptySet()
+    val kept = all.filter { it.name.lowercase() in extra || it.name.equals("red", true) || it.name.equals("ulpfec", true) }.map { it.type }
+    val base = h264 + kept
     val rtx = all.filter { it.name.equals("rtx", true) && aptOf(it.fmtp) in base }.map { it.type }
     return base + rtx
 }

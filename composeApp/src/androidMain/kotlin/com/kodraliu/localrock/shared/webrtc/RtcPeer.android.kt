@@ -39,7 +39,8 @@ import kotlin.coroutines.suspendCoroutine
 
 actual val liveViewSupported: Boolean = true
 
-actual fun createRtcPeer(iceServers: List<RtcIceServer>): RtcPeer = AndroidRtcPeer(iceServers)
+actual fun createRtcPeer(iceServers: List<RtcIceServer>, experiments: VideoExperiments): RtcPeer =
+    AndroidRtcPeer(iceServers, experiments)
 
 internal val rtcEglBase: EglBase by lazy { EglBase.create() }
 
@@ -57,7 +58,7 @@ private val peerConnectionFactory: PeerConnectionFactory by lazy {
         .createPeerConnectionFactory()
 }
 
-internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
+internal class AndroidRtcPeer(iceServers: List<RtcIceServer>, private val experiments: VideoExperiments) : RtcPeer {
 
     private val _localCandidates = MutableSharedFlow<RtcIceCandidate>(replay = 32, extraBufferCapacity = 32)
     override val localCandidates: SharedFlow<RtcIceCandidate> = _localCandidates
@@ -76,6 +77,8 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     private var micTrack: AudioTrack? = null
     private var remoteAudio: AudioTrack? = null
     private var speakerWanted = true
+    private var lastBytes: Double? = null
+    private var lastBytesAtUs = 0L
 
     private val audioManager = appContextOrNull()?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private var savedMode: Int? = null
@@ -165,6 +168,18 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
             fps = num(video, "framesPerSecond")?.toInt(),
             bufferMs = buffer?.toInt(),
         )
+        val codec = all[str(video, "codecId")]
+        val kbps = num(video, "bytesReceived")?.let { bytes ->
+            val last = lastBytes
+            val dtUs = report.timestampUs.toLong() - lastBytesAtUs
+            lastBytes = bytes
+            lastBytesAtUs = report.timestampUs.toLong()
+            if (last != null && dtUs > 0) ((bytes - last) * 8.0 / (dtUs / 1000.0)).toInt() else null
+        }
+        val inbound = "codec=${str(codec, "mimeType")} pt=${num(codec, "payloadType")?.toInt()} fmtp=${str(codec, "sdpFmtpLine")} " +
+            "in=${num(video, "frameWidth")?.toInt()}x${num(video, "frameHeight")?.toInt()}@${num(video, "framesPerSecond")?.toInt()} kbps=$kbps " +
+            "decoded=${num(video, "framesDecoded")?.toLong()} dropped=${num(video, "framesDropped")?.toLong()} " +
+            "nack=${num(video, "nackCount")?.toLong()} pli=${num(video, "pliCount")?.toLong()} decoder=${str(video, "decoderImplementation")}"
         val audioIn = all.values.firstOrNull { it.type == "inbound-rtp" && (str(it, "kind") ?: str(it, "mediaType")) == "audio" }
         val audioOut = all.values.firstOrNull { it.type == "outbound-rtp" && (str(it, "kind") ?: str(it, "mediaType")) == "audio" }
         Log.i(
@@ -173,7 +188,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
                 "level=${num(audioIn, "audioLevel")} codec=${str(audioIn, "codecId")} | " +
                 "out pkts=${num(audioOut, "packetsSent")?.toLong()} bytes=${num(audioOut, "bytesSent")?.toLong()} mic=${micTrack?.enabled()}",
         )
-        Log.i("RtcStats", "$snapshot local=${str(local, "candidateType")} remote=${str(remote, "candidateType")}")
+        Log.i("RtcStats", "$snapshot local=${str(local, "candidateType")} remote=${str(remote, "candidateType")} $inbound")
         _stats.value = snapshot
     }
 
@@ -186,7 +201,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
         )
         pc.addTransceiver(
             MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
-            RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
+            RtpTransceiver.RtpTransceiverInit(if (experiments.direction == VideoDirection.SEND_RECV) RtpTransceiver.RtpTransceiverDirection.SEND_RECV else RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
         )
         val created = suspendCoroutine<SessionDescription> { cont ->
             pc.createOffer(object : SdpObserverAdapter() {
@@ -195,7 +210,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
                     cont.resumeWithException(RuntimeException("createOffer failed: $error"))
             }, MediaConstraints())
         }
-        val offer = SessionDescription(created.type, shapeOfferForRobot(created.description))
+        val offer = SessionDescription(created.type, buildRobotOffer(created.description, experiments))
         suspendCoroutine<Unit> { cont ->
             pc.setLocalDescription(object : SdpObserverAdapter() {
                 override fun onSetSuccess() = cont.resume(Unit)
@@ -203,10 +218,12 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
                     cont.resumeWithException(RuntimeException("setLocalDescription failed: $error"))
             }, offer)
         }
+        if (experiments.dumpSdp) dumpSdp("offer", offer.description)
         return offer.description
     }
 
     override suspend fun setRemoteAnswer(sdp: String) {
+        if (experiments.dumpSdp) dumpSdp("answer", sdp)
         Log.i("RtcAudio", "answer audio section: " + sdp.split(Regex("\r?\n")).dropWhile { !it.startsWith("m=audio") }.takeWhile { !it.startsWith("m=video") }.filter { it.startsWith("m=") || it.startsWith("a=send") || it.startsWith("a=recv") || it.startsWith("a=inactive") || it.startsWith("a=rtpmap") || it.startsWith("a=ssrc") || it.startsWith("a=msid") }.joinToString(" ; "))
         suspendCoroutine<Unit> { cont ->
             pc.setRemoteDescription(object : SdpObserverAdapter() {
@@ -215,6 +232,11 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
                     cont.resumeWithException(RuntimeException("setRemoteDescription failed: $error"))
             }, SessionDescription(SessionDescription.Type.ANSWER, sdp))
         }
+    }
+
+    private fun dumpSdp(label: String, sdp: String) {
+        Log.i("SdpDump", "--- $label (${experiments.encode()}) ---")
+        redactSdp(sdp).lines().forEach { Log.i("SdpDump", "$label| $it") }
     }
 
     override fun addRemoteCandidate(candidate: RtcIceCandidate) {

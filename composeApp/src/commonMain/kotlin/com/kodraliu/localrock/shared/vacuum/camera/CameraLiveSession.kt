@@ -18,6 +18,7 @@ import com.kodraliu.localrock.shared.webrtc.RtcConnectionState
 import com.kodraliu.localrock.shared.webrtc.RtcIceCandidate
 import com.kodraliu.localrock.shared.webrtc.RtcIceServer
 import com.kodraliu.localrock.shared.webrtc.RtcPeer
+import com.kodraliu.localrock.shared.webrtc.VideoExperiments
 import com.kodraliu.localrock.shared.webrtc.createRtcPeer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +80,9 @@ class CameraLiveSession(private val session: VacuumSession) {
     /** SD, HD, FHD or AUTO, asked for when the stream starts like the official app does. */
     var quality: String = "HD"
         private set
+
+    /** Debug offer switches, read each time a stream starts. */
+    var experiments: VideoExperiments = VideoExperiments()
 
     /** Restarts the stream asking the robot for [newQuality]. */
     fun restartWithQuality(pin: String, newQuality: String) {
@@ -291,7 +295,7 @@ class CameraLiveSession(private val session: VacuumSession) {
             if (attempt < TURN_ATTEMPTS) delay(TURN_RETRY_MS)
         }
 
-        val peer = createRtcPeer(iceServers)
+        val peer = createRtcPeer(iceServers, experiments)
         _peer.value = peer
 
         coroutineScope {

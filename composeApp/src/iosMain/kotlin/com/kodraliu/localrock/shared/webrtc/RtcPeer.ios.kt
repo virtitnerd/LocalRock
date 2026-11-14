@@ -51,7 +51,7 @@ object IosRtc {
 actual val liveViewSupported: Boolean
     get() = IosRtc.factory != null
 
-actual fun createRtcPeer(iceServers: List<RtcIceServer>): RtcPeer {
+actual fun createRtcPeer(iceServers: List<RtcIceServer>, experiments: VideoExperiments): RtcPeer {
     val factory = IosRtc.factory
         ?: throw UnsupportedOperationException(
             "iOS WebRTC factory not injected — pass one to MainViewController(rtcPeerFactory:)"
