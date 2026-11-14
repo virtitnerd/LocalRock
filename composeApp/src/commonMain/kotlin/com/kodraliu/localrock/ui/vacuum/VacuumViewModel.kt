@@ -7,7 +7,9 @@ import com.kodraliu.localrock.shared.messages.MessageSeverity
 import com.kodraliu.localrock.shared.model.Scene
 import com.kodraliu.localrock.shared.model.SceneRunResult
 import com.kodraliu.localrock.shared.model.LastKnown
+import com.kodraliu.localrock.shared.vacuum.Capabilities
 import com.kodraliu.localrock.shared.vacuum.DockCapabilities
+import com.kodraliu.localrock.shared.vacuum.buildCapabilities
 import com.kodraliu.localrock.shared.vacuum.FeatureSection
 import com.kodraliu.localrock.shared.vacuum.FirmwareProgress
 import com.kodraliu.localrock.shared.vacuum.firmwareInstallBlocker
@@ -82,6 +84,10 @@ class VacuumViewModel(
     val supportsWaterSlide: StateFlow<Boolean> = repository.robotFeatureSet
         .map { isWaterSlideSupported(it ?: serverFeatureSet) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, isWaterSlideSupported(serverFeatureSet))
+    // The redesign's single source of what this robot supports; the flags above stay until screens move over.
+    val capabilities: StateFlow<Capabilities> = repository.robotFeatureSet
+        .map { buildCapabilities(modelName, device.featureSet, serverFeatureSet, it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, buildCapabilities(modelName, device.featureSet, serverFeatureSet, null))
     val status = repository.status
 
     private val errorBannerKey = "robot-error-${device.duid}"
