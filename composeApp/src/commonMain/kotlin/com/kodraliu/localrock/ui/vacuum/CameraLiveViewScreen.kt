@@ -1,6 +1,13 @@
 package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import com.kodraliu.localrock.shared.vacuum.startVoiceChat
+import com.kodraliu.localrock.shared.vacuum.stopVoiceChat
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.kodraliu.localrock.ui.rememberMicrophonePermissionRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
@@ -10,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.viewModelScope
 import com.kodraliu.localrock.shared.webrtc.RtcStats
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -69,24 +77,36 @@ fun CameraLiveViewScreen(
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
-    val liveSession = remember { CameraLiveSession(viewModel.repository.session) }
+    val liveSession = remember { viewModel.cameraSession() }
+    var keepAlive by remember { mutableStateOf(false) }
     val state by liveSession.state.collectAsState()
     val peer by liveSession.peer.collectAsState()
 
     var pin by remember { mutableStateOf(container.appSettings.cameraPin(duid) ?: "") }
     var autoStarted by remember { mutableStateOf(false) }
-    var quality by remember { mutableStateOf("HD") }
+    var quality by remember { mutableStateOf(liveSession.quality) }
+    var micOn by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val askMic = rememberMicrophonePermissionRequest { granted ->
+        if (granted) {
+            micOn = true
+            peer?.setMicEnabled(true)
+            scope.launch { runCatching { viewModel.repository.session.startVoiceChat(play = true, record = true) } }
+        }
+    }
 
     LandscapeWhile(liveViewSupported)
 
     DisposableEffect(Unit) {
-        onDispose { liveSession.dispose() }
+        onDispose {
+            if (micOn) viewModel.viewModelScope.launch { runCatching { viewModel.repository.session.stopVoiceChat() } }
+            if (!keepAlive) viewModel.closeCamera()
+        }
     }
 
     // If a PIN is already saved, connect immediately.
     LaunchedEffect(Unit) {
-        if (liveViewSupported && pin.isNotBlank() && !autoStarted) {
+        if (liveViewSupported && pin.isNotBlank() && !autoStarted && liveSession.state.value is CameraLiveSession.State.Idle) {
             autoStarted = true
             liveSession.start(pin)
         }
@@ -119,21 +139,6 @@ fun CameraLiveViewScreen(
                     .padding(horizontal = 10.dp, vertical = 3.dp),
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
-            )
-
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Go back",
-                tint = Color.White,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 8.dp, start = 12.dp)
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .clickable(onClick = onBack)
-                    .padding(10.dp),
             )
 
             when (val s = state) {
@@ -189,7 +194,15 @@ fun CameraLiveViewScreen(
                     )
                     CameraMiniMap(
                         viewModel,
-                        onPinGo,
+                        {
+                            if (micOn) {
+                                micOn = false
+                                peer?.setMicEnabled(false)
+                                scope.launch { runCatching { viewModel.repository.session.stopVoiceChat() } }
+                            }
+                            keepAlive = true
+                            onPinGo()
+                        },
                         Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 12.dp, end = 12.dp),
                     )
                     val stats by (peer?.stats ?: noStats).collectAsState()
@@ -231,8 +244,45 @@ fun CameraLiveViewScreen(
                     }
                 }
             }
+
+            Row(
+                Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 8.dp, start = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                RoundButton(Icons.AutoMirrored.Filled.ArrowBack, "Go back", Color.Black.copy(alpha = 0.45f), onBack)
+                if (state is CameraLiveSession.State.Streaming) {
+                    RoundButton(
+                        if (micOn) Icons.Default.CallEnd else Icons.Default.Call,
+                        if (micOn) "Stop talking" else "Talk to the robot",
+                        if (micOn) Color(0xFFD32F2F) else Color(0xFF2E9E4F),
+                    ) {
+                        if (micOn) {
+                            micOn = false
+                            peer?.setMicEnabled(false)
+                            scope.launch { runCatching { viewModel.repository.session.stopVoiceChat() } }
+                        } else {
+                            askMic()
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun RoundButton(icon: ImageVector, description: String, background: Color, onClick: () -> Unit) {
+    Icon(
+        icon,
+        contentDescription = description,
+        tint = Color.White,
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(background)
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+    )
 }
 
 @Composable

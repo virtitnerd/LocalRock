@@ -17,6 +17,7 @@ import com.kodraliu.localrock.shared.vacuum.MATTER_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.PET_SNAPSHOT_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.VIDEO_PATROL_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.camera.CAMERA_FEATURE_BITS
+import com.kodraliu.localrock.shared.vacuum.camera.CameraLiveSession
 import com.kodraliu.localrock.shared.vacuum.camera.TWO_KEY_VIDEO_FEATURE_BIT
 import com.kodraliu.localrock.shared.vacuum.MapEditException
 import com.kodraliu.localrock.shared.vacuum.RoomType
@@ -299,7 +300,19 @@ class VacuumViewModel(
         }
     }
 
+    private var cameraSessionHolder: CameraLiveSession? = null
+
+    /** The live view's session lives here so it keeps streaming while another screen, such as Pin & Go, is open. */
+    fun cameraSession(): CameraLiveSession =
+        cameraSessionHolder ?: CameraLiveSession(repository.session).also { cameraSessionHolder = it }
+
+    fun closeCamera() {
+        cameraSessionHolder?.dispose()
+        cameraSessionHolder = null
+    }
+
     override fun onCleared() {
+        closeCamera()
         container.messages.dismissBanner(errorBannerKey)
         repository.detach()
     }

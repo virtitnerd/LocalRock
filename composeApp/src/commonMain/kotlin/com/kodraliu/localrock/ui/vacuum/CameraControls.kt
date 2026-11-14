@@ -53,9 +53,10 @@ private const val MOVE_MS = 700
 fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
     val repository = viewModel.repository
     val scope = rememberCoroutineScope()
+    // Remote control stops a clean in progress, so it starts only when the stick is first used.
+    val rc = remember { object { var started = false } }
     DisposableEffect(repository) {
-        scope.launch { runCatching { repository.startRemoteControl() } }
-        onDispose { scope.launch { runCatching { repository.stopRemoteControl() } } }
+        onDispose { if (rc.started) scope.launch { runCatching { repository.stopRemoteControl() } } }
     }
 
     var stick by remember { mutableStateOf(Offset.Zero) }
@@ -68,6 +69,10 @@ fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
             val vy = if (abs(s.y) < DEAD_ZONE) 0f else s.y
             if (vx != 0f || vy != 0f) {
                 moving = true
+                if (!rc.started) {
+                    rc.started = true
+                    runCatching { repository.startRemoteControl() }
+                }
                 runCatching { repository.moveRemote(-vy * MAX_SPEED, -vx * MAX_TURN, MOVE_MS) }
             } else if (moving) {
                 moving = false
