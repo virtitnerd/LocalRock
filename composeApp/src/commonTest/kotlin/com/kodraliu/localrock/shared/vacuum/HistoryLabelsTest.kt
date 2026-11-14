@@ -26,6 +26,24 @@ class HistoryLabelsTest {
     }
 
     @Test
+    fun rowSubtitleIsStartTypeThenDuration() {
+        val clean = CleanRecord(1794587027, 1794596026, 6698, 92_412_500, 0, 1, startType = 2, cleanType = 1)
+        assertEquals("App | 112 min", historyRowSubtitle(clean))
+        assertEquals("Full | 112 min", historyRowSubtitle(clean.copy(startType = 999)))
+        assertEquals("Search for the Pet | 19 min", historyRowSubtitle(clean.copy(cleanType = CLEAN_TYPE_PET_PATROL, durationSeconds = 1150)))
+        assertEquals("Cruise | 4 min", historyRowSubtitle(clean.copy(cleanType = CLEAN_TYPE_VIDEO_PATROL, durationSeconds = 211)))
+    }
+
+    @Test
+    fun cruiseResultsUseTheOfficialWords() {
+        val run = CleanRecord(1794607499, 1794607757, 211, 0, 0, 1, cleanType = CLEAN_TYPE_VIDEO_PATROL)
+        assertEquals("Cruise completed", cruiseResultLabel(run))
+        assertEquals("Cruise failed", cruiseResultLabel(run.copy(complete = 0)))
+        assertEquals("Pet found", cruiseResultLabel(run.copy(cleanType = CLEAN_TYPE_PET_PATROL)))
+        assertEquals("Pet found failed", cruiseResultLabel(run.copy(cleanType = CLEAN_TYPE_PET_PATROL, complete = 0)))
+    }
+
+    @Test
     fun areaSplitsIntoValueAndUnit() {
         assertEquals("94" to "m²", areaParts(cleanAreaLabel(93_592_500)))
         assertEquals("29.9k" to "m²", areaParts(totalAreaLabel(29_927_845_000)))

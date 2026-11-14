@@ -34,3 +34,21 @@ fun workingTimesHelp(cleanTimes: Int, patrolTimes: Int): String =
 
 /** The header count: the official app adds cruise runs to the clean count (Curv: 2 + 4 = "6 time(s)"). */
 fun workingTimes(summary: CleanSummary): Int = summary.totalCount + summary.patrolCount
+
+/** A History row's second line, "start type | duration": "App | 112 min", "Search for the Pet | 19 min". */
+fun historyRowSubtitle(record: CleanRecord): String {
+    val what = if (record.isCruise) record.cruiseTitle else startTypeLabel(record.startType) ?: cleanTypeLabel(record.cleanType)
+    return listOfNotNull(what, cleanDurationLabel(record.durationSeconds)).joinToString(" | ")
+}
+
+/** The official result line of a cruise or pet-finding run. */
+fun cruiseResultLabel(record: CleanRecord): String {
+    val pet = record.cleanType == CLEAN_TYPE_PET_PATROL
+    val ok = record.complete == 1
+    return when {
+        pet && ok -> "Pet found"
+        pet -> "Pet found failed"
+        ok -> "Cruise completed"
+        else -> "Cruise failed"
+    }
+}

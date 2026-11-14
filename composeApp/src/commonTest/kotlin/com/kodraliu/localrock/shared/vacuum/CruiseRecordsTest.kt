@@ -50,7 +50,7 @@ class CruiseRecordsTest {
     fun dustCollectionStatusIsACountNotAFlag() {
         val r = parse(clean, 1794587027)
         assertEquals(4, r.dustCollectionCount)
-        assertEquals(listOf("App", "Full", "Dust collection x 4", "Mop wash x 4"), cleanRecordTags(r))
+        assertEquals(listOf("App", "Full", "Dust collection x 4", "Mop wash x 4"), cleanRecordTags(r))
         assertEquals(0, parse(cruise, 1794607499).dustCollectionCount)
     }
 
