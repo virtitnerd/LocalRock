@@ -569,8 +569,15 @@ class VacuumRepository(
 
     suspend fun startRemoteControl() { session.appRcStart() }
 
-    suspend fun moveRemote(velocity: Double, omega: Double, durationMs: Int) {
-        session.appRcMove(velocity, omega, durationMs)
+    private var remoteSeqnum = 0
+
+    /** False when the robot answered "action locked", meaning remote control has to be started again. */
+    suspend fun moveRemote(velocity: Double, omega: Double, durationMs: Int): Boolean =
+        !isActionLocked(session.appRcMove(velocity, omega, durationMs, ++remoteSeqnum).error)
+
+    /** Stops the robot the way the official app does; a robot that rejects `app_rc_stop` gets a zero move instead. */
+    suspend fun stopRemoteMove() {
+        if (session.appRcStop().error != null) moveRemote(0.0, 0.0, 200)
     }
 
     suspend fun stopRemoteControl() { session.appRcEnd() }
