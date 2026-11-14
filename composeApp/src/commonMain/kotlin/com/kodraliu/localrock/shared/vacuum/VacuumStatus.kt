@@ -39,6 +39,8 @@ data class VacuumStatus(
     @SerialName("common_status") val commonStatus: Int? = null,
     /** How far through the current job the robot says it is, 0..100. */
     @SerialName("clean_percent") val cleanPercent: Int? = null,
+    /** Why the robot heads for the dock in state 26: 1 mop wash, 2 reinstall mounts, 3 detach mounts, 4 emptying. */
+    @SerialName("back_type") val backType: Int? = null,
 ) {
     /** True when the status itself says the patrol is a pet search. */
     val isPetPatrol: Boolean get() = commonStatus?.let { ((it shr 3) and 3) == 2 } == true
