@@ -265,8 +265,16 @@ suspend fun VacuumSession.getMultiMapsList(): V1Response = sendCommand("get_mult
 suspend fun VacuumSession.checkHomesecPassword(passwordMd5Hex: String): V1Response =
     sendCommandRaw("check_homesec_password", JsonObject(mapOf("password" to JsonPrimitive(passwordMd5Hex))))
 
-suspend fun VacuumSession.setHomesecPassword(passwordMd5Hex: String): V1Response =
-    sendCommandRaw("set_homesec_password", JsonObject(mapOf("password" to JsonPrimitive(passwordMd5Hex))))
+/** The official app's body: `enable_password`, the new password's MD5, and the old one's when changing it. */
+internal fun homesecPasswordParams(newPasswordMd5Hex: String, oldPasswordMd5Hex: String? = null): JsonObject =
+    JsonObject(buildMap {
+        put("enable_password", JsonPrimitive(1))
+        if (oldPasswordMd5Hex != null) put("old_password", JsonPrimitive(oldPasswordMd5Hex))
+        put("new_password", JsonPrimitive(newPasswordMd5Hex))
+    })
+
+suspend fun VacuumSession.setHomesecPassword(passwordMd5Hex: String, oldPasswordMd5Hex: String? = null): V1Response =
+    sendCommandRaw("set_homesec_password", homesecPasswordParams(passwordMd5Hex, oldPasswordMd5Hex))
 
 suspend fun VacuumSession.resetHomesecPassword(): V1Response = sendCommand("reset_homesec_password")
 
