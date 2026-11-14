@@ -1,5 +1,7 @@
 package com.kodraliu.localrock.ui.components
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,13 +36,15 @@ fun PickerDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 options.forEachIndexed { index, option ->
+                    // The whole row selects, not just the radio button.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .selectable(selected = index == selected, enabled = enabled, role = Role.RadioButton) { onSelect(index) }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = index == selected, enabled = enabled, onClick = { onSelect(index) })
+                        RadioButton(selected = index == selected, enabled = enabled, onClick = null)
                         Spacer(Modifier.width(8.dp))
                         Text(option, style = MaterialTheme.typography.bodyMedium)
                     }

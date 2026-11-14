@@ -45,6 +45,7 @@ internal fun DockSettingsScreen(
     onEmptyWaterTank: () -> Unit,
     features: List<BetaFeatureState>,
     onFeatureToggle: (String, Boolean) -> Unit,
+    onFeatureChoice: (String, Int) -> Unit,
     onMopDryingChange: (Boolean) -> Unit,
     onDryTimeChange: (Int) -> Unit,
     onWashWaterTemperatureChange: (Int) -> Unit,
@@ -84,12 +85,12 @@ internal fun DockSettingsScreen(
                     SettingRowClickable(Icons.Default.Thermostat, AppColors.Warn, SettingsStrings.MOP_WASH_TEMPERATURE,
                         DockOptions.washWaterTemperature.labelFor(temperature), enabled = !busy) { dialogTarget = "wash_temp" }
                 }
-                rows(DockGroup.WASH).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle) }
+                rows(DockGroup.WASH).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle, onFeatureChoice) }
             }
         }
         item {
             SettingGroup {
-                rows(DockGroup.EMPTY).forEach { FeatureToggleRow(it, onFeatureToggle); RowDivider() }
+                rows(DockGroup.EMPTY).forEach { FeatureToggleRow(it, onFeatureToggle, onFeatureChoice); RowDivider() }
                 SettingRowClickable(Icons.Default.Delete, AppColors.Good, SettingsStrings.EMPTY_MODE,
                     dockCapabilities.autoEmptyModeLabel(dockSettings.autoEmptyMode), enabled = autoEmptyEnabled) { dialogTarget = "auto_empty" }
             }
@@ -111,7 +112,7 @@ internal fun DockSettingsScreen(
                     }
                     dryRows.forEachIndexed { i, f ->
                         if (i > 0 || dockSettings.mopDrying != null) RowDivider()
-                        FeatureToggleRow(f, onFeatureToggle)
+                        FeatureToggleRow(f, onFeatureToggle, onFeatureChoice)
                     }
                 }
             }
@@ -121,10 +122,10 @@ internal fun DockSettingsScreen(
             SettingGroup {
                 SettingRowClickable(Icons.Default.WaterDrop, AppColors.Water, SettingsStrings.DRAIN_ONBOARD_TANK,
                     SettingsStrings.DRAIN_ONBOARD_TANK_DETAIL, enabled = !busy) { confirmEmptyTank = true }
-                rows(DockGroup.MAINTENANCE).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle) }
+                rows(DockGroup.MAINTENANCE).forEach { RowDivider(); FeatureToggleRow(it, onFeatureToggle, onFeatureChoice) }
             }
         }
-        if (otherRows.isNotEmpty()) item { FeatureCard(otherRows, onFeatureToggle) }
+        if (otherRows.isNotEmpty()) item { FeatureCard(otherRows, onFeatureToggle, onFeatureChoice) }
     }
 
     if (confirmEmptyTank) {
@@ -209,6 +210,10 @@ fun VacuumDockSettingsScreen(viewModel: VacuumViewModel, onBack: () -> Unit) {
         onEmptyWaterTank = { viewModel.run("Emptying the water tank") { it.emptyInbuiltWaterTank() } },
         features = betaFeatures.inSection(FeatureSection.DOCK),
         onFeatureToggle = { id, on -> viewModel.report { it.setBetaFeature(id, on) } },
+        // Drying Start Method writes the dryer setting, so the Mop drying switch re-reads it.
+        onFeatureChoice = { id, value ->
+            viewModel.report { it.setBetaChoice(id, value); if (id == "drying_start_method") runCatching { it.fetchDockSettings() } }
+        },
         onMopDryingChange = { on -> viewModel.run { it.setMopDrying(on) } },
         onDryTimeChange = { seconds -> viewModel.run { it.setDryTime(seconds) } },
         onWashWaterTemperatureChange = { value -> viewModel.run { it.setWashWaterTemperature(value) } },

@@ -1407,7 +1407,8 @@ class VacuumRepository(
         val dryer = runCatching { session.getDryerSetting().requireOk("app_get_dryer_setting").result as? JsonObject }.getOrNull()
         (dryer?.get("status") as? JsonPrimitive)?.intOrNull?.let { status ->
             val seconds = ((dryer["on"] as? JsonObject)?.get("dry_time") as? JsonPrimitive)?.intOrNull
-            _dockSettings.update { it.copy(mopDrying = status == 1, dryTimeSeconds = seconds, dryerAnswer = dryer) }
+            // 1 is Auto and 2 Scheduled Drying; both mean the dock dries the mop.
+            _dockSettings.update { it.copy(mopDrying = status != 0, dryTimeSeconds = seconds, dryerAnswer = dryer) }
         }
         // The read answers {"wash_water_temperature": n}, where the setter takes {"values": n}.
         val temperature = runCatching { session.getWashWaterTemperature().requireOk("get_wash_water_temperature").result as? JsonObject }.getOrNull()

@@ -93,7 +93,9 @@ data class DndSettings(
  */
 internal fun dryerSettingBody(reported: JsonObject?, enabled: Boolean, dryTimeSeconds: Int?): JsonObject {
     val body = (reported ?: JsonObject(emptyMap())).toMutableMap()
-    body["status"] = JsonPrimitive(if (enabled) 1 else 0)
+    // On keeps a reported Scheduled (2) or Auto (1) start; only off, or no answer, picks the value.
+    val held = (reported?.get("status") as? JsonPrimitive)?.intOrNull?.takeIf { it != 0 }
+    body["status"] = JsonPrimitive(if (enabled) held ?: 1 else 0)
     if (dryTimeSeconds != null) {
         val on = ((reported?.get("on") as? JsonObject) ?: JsonObject(emptyMap())).toMutableMap()
         on["dry_time"] = JsonPrimitive(dryTimeSeconds)
