@@ -187,7 +187,6 @@ fun AppNavHost() {
                 CameraLiveViewScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
-                    onPinGo = { navController.navigate(VacuumPinGo) },
                 )
             }
 

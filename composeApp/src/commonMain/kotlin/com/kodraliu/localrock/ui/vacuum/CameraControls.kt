@@ -1,6 +1,19 @@
 package com.kodraliu.localrock.ui.vacuum
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import com.kodraliu.localrock.shared.vacuum.VacuumStateCodes
+import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +21,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -119,11 +134,29 @@ fun CameraJoystick(viewModel: VacuumViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-/** The map in the corner with the quick actions that matter while watching. */
+/** The map in the corner with what you can do from here: Pin n Go and the pet search, or pause, end and dock while the robot is busy. */
 @Composable
-fun CameraMiniMap(viewModel: VacuumViewModel, onPinGo: () -> Unit, modifier: Modifier = Modifier) {
+fun CameraSidePanel(
+    viewModel: VacuumViewModel,
+    pinGoOpen: Boolean,
+    onPinGoChange: (Boolean) -> Unit,
+    onPet: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     val map by viewModel.repository.parsedMap.collectAsState()
+    val status by viewModel.repository.status.collectAsState()
     val parsed = map ?: return
+    if (pinGoOpen) {
+        PinGoPanel(viewModel, parsed, { onPinGoChange(false) }, modifier)
+        return
+    }
+    val state = status.state
+    val busy = state != null && state !in setOf(
+        VacuumStateCodes.IDLE, VacuumStateCodes.NOT_CHARGING, VacuumStateCodes.CHARGING,
+        VacuumStateCodes.CHARGING_COMPLETE, VacuumStateCodes.CHARGER_DISCONNECTED, VacuumStateCodes.SHUTTING_DOWN,
+        // Driving by hand or a paused clean is not a running task: you can still send the robot somewhere.
+        VacuumStateCodes.MANUAL_MODE, VacuumStateCodes.REMOTE_CONTROL_ACTIVE, VacuumStateCodes.PAUSED,
+    )
     Column(
         modifier
             .width(168.dp)
@@ -139,15 +172,97 @@ fun CameraMiniMap(viewModel: VacuumViewModel, onPinGo: () -> Unit, modifier: Mod
             modifier = Modifier.heightIn(max = 150.dp),
             contentScale = ContentScale.Fit,
         )
+        if (busy) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PanelButton("Pause", Modifier.weight(1f)) { viewModel.run { it.pause() } }
+                PanelButton("End", Modifier.weight(1f)) { viewModel.run { it.stopCleaning() } }
+            }
+            PanelButton("Dock", Modifier.fillMaxWidth()) { viewModel.run { it.dock() } }
+        } else {
+            if (state == VacuumStateCodes.PAUSED) PanelButton("Resume", Modifier.fillMaxWidth()) { viewModel.run { it.resumeCleaning() } }
+            PanelButton("Pin n Go", Modifier.fillMaxWidth()) { onPinGoChange(true) }
+            if (onPet != null) PanelButton("Search for the Pet", Modifier.fillMaxWidth(), onPet)
+        }
+    }
+}
+
+@Composable
+private fun PanelButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Text(
+        text,
+        color = Color.White,
+        style = MaterialTheme.typography.labelLarge,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(Color.White.copy(alpha = 0.18f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+    )
+}
+
+/** Pick a spot in a room on a bigger map and send the robot there without leaving the camera. */
+@Composable
+private fun PinGoPanel(viewModel: VacuumViewModel, parsed: ParsedMap, onClose: () -> Unit, modifier: Modifier) {
+    var tap by remember { mutableStateOf<Offset?>(null) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val bitmap = rememberMapBitmap(parsed)
+    Column(
+        modifier
+            .width(300.dp)
+            .fillMaxHeight()
+            .clip(MaterialTheme.shapes.large)
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Default.Close,
+            contentDescription = "Close",
+            tint = Color.White,
+            modifier = Modifier.align(Alignment.End).size(32.dp).clip(CircleShape).clickable(onClick = onClose).padding(6.dp),
+        )
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Canvas(
+                Modifier
+                    .aspectRatio(parsed.width.toFloat() / parsed.height.toFloat())
+                    .onSizeChanged { size = it }
+                    .pointerInput(parsed) {
+                        detectTapGestures { offset ->
+                            if (parsed.isRoomFloorAt(offset, size.width.toFloat(), size.height.toFloat())) tap = offset
+                        }
+                    },
+            ) {
+                drawImage(
+                    image = bitmap,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(bitmap.width, bitmap.height),
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt()),
+                    filterQuality = FilterQuality.None,
+                )
+                tap?.let { tp ->
+                    drawCircle(color = Color(0xFFE53935).copy(alpha = 0.9f), radius = 20f, center = tp)
+                    drawCircle(color = Color.White, radius = 8f, center = tp)
+                }
+            }
+        }
         Text(
-            "Pin n Go",
+            "Go",
             color = Color.White,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
-                .clip(MaterialTheme.shapes.medium)
-                .background(Color.White.copy(alpha = 0.18f))
-                .clickable(onClick = onPinGo)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .clip(CircleShape)
+                .background(if (tap != null) Color(0xFF1E6FFF) else Color.White.copy(alpha = 0.18f))
+                .clickable(enabled = tap != null) {
+                    val tp = tap ?: return@clickable
+                    val (x, y) = parsed.canvasToMm(tp, size.width.toFloat(), size.height.toFloat())
+                    viewModel.run { it.gotoTarget(x, y) }
+                    onClose()
+                }
+                .padding(horizontal = 44.dp, vertical = 10.dp),
         )
     }
 }
