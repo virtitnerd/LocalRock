@@ -71,21 +71,24 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>) : RtcPeer {
     }
 
     override suspend fun createOffer(): String {
+        // The robot only answers the official app's offer: audio first and sendrecv (a transceiver without a
+        // track is enough), then receive-only video. The codecs are trimmed below.
+        pc.addTransceiver(
+            MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
+            RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_RECV),
+        )
         pc.addTransceiver(
             MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
             RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
         )
-        pc.addTransceiver(
-            MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
-            RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
-        )
-        val offer = suspendCoroutine<SessionDescription> { cont ->
+        val created = suspendCoroutine<SessionDescription> { cont ->
             pc.createOffer(object : SdpObserverAdapter() {
                 override fun onCreateSuccess(desc: SessionDescription) = cont.resume(desc)
                 override fun onCreateFailure(error: String?) =
                     cont.resumeWithException(RuntimeException("createOffer failed: $error"))
             }, MediaConstraints())
         }
+        val offer = SessionDescription(created.type, shapeOfferForRobot(created.description))
         suspendCoroutine<Unit> { cont ->
             pc.setLocalDescription(object : SdpObserverAdapter() {
                 override fun onSetSuccess() = cont.resume(Unit)
