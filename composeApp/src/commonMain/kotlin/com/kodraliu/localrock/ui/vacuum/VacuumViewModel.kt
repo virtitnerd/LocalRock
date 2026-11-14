@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.kodraliu.localrock.shared.vacuum.supportedBetaFeatures
+import com.kodraliu.localrock.shared.vacuum.unlistedAdvertisedFeatures
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -87,6 +90,11 @@ class VacuumViewModel(
         _map3DYaw.value = ((degrees % 360f) + 360f) % 360f
         saveMap3DViewSoon()
     }
+
+    /** A twist or drag arrives as a change, so two events in one frame both count. */
+    fun turnMap3DBy(degrees: Float) = setMap3DYaw(_map3DYaw.value + degrees)
+
+    fun tiltMap3DBy(degrees: Float) = setMap3DTilt(_map3DTilt.value + degrees)
 
     fun setMap3DTilt(degrees: Float) {
         _map3DTilt.value = degrees.coerceIn(MAP_3D_MIN_TILT, MAP_3D_MAX_TILT)
