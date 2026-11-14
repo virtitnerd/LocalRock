@@ -36,19 +36,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kodraliu.localrock.shared.vacuum.CleanRecord
 import com.kodraliu.localrock.shared.vacuum.PatrolThumbnail
 import com.kodraliu.localrock.shared.vacuum.cruiseResultLabel
@@ -213,13 +209,12 @@ private fun CruisePointRow(
     }
 }
 
-/** The floor plan cropped and fitted as [SavedMapImage] does, with each cruise point drawn as a numbered badge. */
+/** The floor plan cropped and fitted as [SavedMapImage] does, with each cruise point drawn as a numbered pin. */
 @Composable
 private fun CruiseMapImage(map: ParsedMap, points: List<PatrolPoint>, modifier: Modifier, rotationDegrees: Int) {
     val bitmap = rememberMapBitmap(map)
     val bounds = remember(map) { map.contentBoundsNorm() }
     val measurer = rememberTextMeasurer()
-    val badge = MaterialTheme.colorScheme.primary
     Canvas(modifier) {
         val usable = bounds.isUsable
         val srcLeft = if (usable) bounds.left * bitmap.width else 0f
@@ -250,11 +245,7 @@ private fun CruiseMapImage(map: ParsedMap, points: List<PatrolPoint>, modifier: 
             val flat = Offset(dstLeft + (cell.x * cellToBitmap - srcLeft) * scale, dstTop + (cell.y * cellToBitmap - srcTop) * scale)
             val d = flat - centre
             val at = Offset(centre.x + d.x * cos(radians) - d.y * sin(radians), centre.y + d.x * sin(radians) + d.y * cos(radians))
-            val r = 11.dp.toPx()
-            drawCircle(Color.White, r + 1.5.dp.toPx(), at)
-            drawCircle(badge, r, at)
-            val label = measurer.measure("${i + 1}", TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold))
-            drawText(label, topLeft = Offset(at.x - label.size.width / 2f, at.y - label.size.height / 2f))
+            drawCruisePin(at, i + 1, measurer)
         }
     }
 }
