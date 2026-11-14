@@ -183,6 +183,11 @@ class AppSettings(private val settings: Settings) {
         else settings.putString("camera_pin_$duid", pin)
     }
 
+    // Remote Viewing call volume (official ChatVolumeValue, default 50), sent with set_voice_chat_volume at call start.
+    fun callVolume(duid: String): Int = settings.getInt("call_volume_$duid", 50)
+
+    fun setCallVolume(duid: String, volume: Int) = settings.putInt("call_volume_$duid", volume)
+
     /**
      * The room order a full clean of one robot's map should follow, empty when none is set. Kept
      * here because the robot's own sequence is rewritten whenever picked rooms are cleaned.

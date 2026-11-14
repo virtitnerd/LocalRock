@@ -209,7 +209,7 @@ fun AppNavHost() {
                 VacuumRobotVoiceScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumSettingsRemoteViewing>(navController, container) {
-                ComingSoonScreen(title = SettingsStrings.REMOTE_VIEWING_SETTINGS, onBack = back)
+                com.kodraliu.localrock.ui.vacuum.RemoteViewingSettingsScreen(viewModel = it, onBack = back)
             }
             vacuumComposable<VacuumSettingsProductInfo>(navController, container) {
                 VacuumProductInfoScreen(viewModel = it, onBack = back)

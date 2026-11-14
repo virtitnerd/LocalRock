@@ -121,7 +121,13 @@ fun CameraLiveViewScreen(
         if (granted) {
             micOn = true
             peer?.setMicEnabled(true)
-            scope.launch { runCatching { viewModel.repository.session.startVoiceChat(play = true, record = true) } }
+            scope.launch {
+                runCatching { viewModel.repository.session.startVoiceChat(play = true, record = true) }
+                // The official app applies the saved Call volume once the call is up.
+                if (viewModel.capabilities.value.remoteViewingFeatures.callVolume) {
+                    runCatching { viewModel.repository.setCallVolume(container.appSettings.callVolume(duid)) }
+                }
+            }
         }
     }
 
@@ -399,22 +405,27 @@ fun CameraLiveViewScreen(
 
 @Composable
 private fun CallSettingsDialog(viewModel: VacuumViewModel, onClose: () -> Unit) {
-    var volume by remember { mutableStateOf(50f) }
+    val settings = LocalAppContainer.current.appSettings
+    val duid = viewModel.repository.duid
+    var volume by remember { mutableStateOf(settings.callVolume(duid).toFloat()) }
     val scope = rememberCoroutineScope()
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onClose,
         title = {
-            Text("Call volume")
+            Text(RemoteStrings.CALL_VOLUME)
         },
         text = {
             Column {
-                Text("How loud the robot's speaker is during a call.", style = MaterialTheme.typography.bodySmall)
+                Text(RemoteStrings.CALL_VOLUME_DESC, style = MaterialTheme.typography.bodySmall)
                 androidx.compose.material3.Slider(
                     value = volume,
                     onValueChange = { volume = it },
-                    valueRange = 0f..100f,
+                    valueRange = 0f..CallVolume.MAX.toFloat(),
+                    steps = CallVolume.MAX / CallVolume.STEP - 1,
                     onValueChangeFinished = {
-                        scope.launch { runCatching { viewModel.repository.setCallVolume(volume.toInt()) } }
+                        val snapped = CallVolume.snap(volume)
+                        settings.setCallVolume(duid, snapped)
+                        scope.launch { runCatching { viewModel.repository.setCallVolume(snapped) } }
                     },
                 )
             }

@@ -112,5 +112,6 @@ object RemoteStrings {
     const val OK = "OK" // verified (goto_setting_on)
     const val CAMERA_TUNING = "Camera tuning" // inferred
     const val CAMERA_TUNING_DESC = "Video experiments and SDP options for the live view" // inferred
-    const val READ_FAILED = "Could not read the camera settings from the robot." // inferred
+    const val RV_NO_CAMERA = "This robot has no camera for Remote Viewing." // inferred
+    const val READ_FAILED ="Could not read the camera settings from the robot." // inferred
 }

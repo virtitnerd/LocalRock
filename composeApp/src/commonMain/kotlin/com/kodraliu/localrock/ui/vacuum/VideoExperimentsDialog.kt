@@ -21,12 +21,12 @@ import com.kodraliu.localrock.shared.webrtc.CodecOrder
 import com.kodraliu.localrock.shared.webrtc.VideoDirection
 import com.kodraliu.localrock.shared.webrtc.VideoExperiments
 
-/** Debug panel opened from the live view popup (Beta): each switch applies the next time the stream starts. */
+/** Debug panel from the live view popup or Remote Viewing settings; without [onRestart] there is no stream to restart. */
 @Composable
 fun VideoExperimentsDialog(
     value: VideoExperiments,
     onChange: (VideoExperiments) -> Unit,
-    onRestart: () -> Unit,
+    onRestart: (() -> Unit)?,
     onClose: () -> Unit,
 ) {
     val bitrates = listOf("None" to 0, "2000" to 2000, "4000" to 4000, "8000" to 8000)
@@ -70,11 +70,14 @@ fun VideoExperimentsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onRestart(); onClose() }) { Text("Restart stream") } },
+        confirmButton = {
+            if (onRestart != null) TextButton(onClick = { onRestart(); onClose() }) { Text("Restart stream") }
+            else TextButton(onClick = onClose) { Text("Done") }
+        },
         dismissButton = {
             Row {
                 TextButton(onClick = { onChange(VideoExperiments()) }) { Text("Reset") }
-                TextButton(onClick = onClose) { Text("Done") }
+                if (onRestart != null) TextButton(onClick = onClose) { Text("Done") }
             }
         },
     )
