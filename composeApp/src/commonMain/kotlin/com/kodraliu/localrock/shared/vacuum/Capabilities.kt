@@ -39,6 +39,7 @@ data class Capabilities(
     val customDnd: Boolean,
     val multiSlotDnd: Boolean,
     val voiceAssistant: Boolean,
+    val childLock: Boolean,
     val matter: Boolean,
     val dock: DockCapabilities,
     // Manage Maps (B3).
@@ -73,6 +74,7 @@ fun buildCapabilities(
     val camera = CAMERA_FEATURE_BITS.any { bit(it) }
     val patrol = bit(VIDEO_PATROL_FEATURE_BIT)
     val hasRoutineTab = false // TODO(B2): isSupportMainPageSmartCommand
+    val settings = buildSettingsCapabilities(featureSet, nfs)
     return Capabilities(
         mainTabs = listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE) + if (hasRoutineTab) listOf(MainTab.ROUTINE) else emptyList(),
         hasRoutineTab = hasRoutineTab,
@@ -86,18 +88,19 @@ fun buildCapabilities(
         pinNGo = true,
         patrol = patrol,
         petSearch = isPetSearchSupported(nfs),
-        hasCarpetSettings = true, // TODO(B1): shouldShowCarpetSettingView; today the row always shows
-        hasFloorSettings = bit(11) || bit(34), // TODO(B1): also the old carpet-pressurise models
-        hasFloorPattern = bit(70),
-        hasDockSettings = true, // TODO(B1): hide for isOldBelowO3 and isPureWash docks
-        hasAutoEmptySettings = false, // TODO(B1): Dock.isPureCollect
-        hasObstacleSettings = false, // TODO(B1): MF.AIRecognition_Setting
-        chargingMode = false, // TODO(B1): RNF 45
-        adjustedBattery = false, // TODO(B1): NFS 72 or 74, check on the Curv first
-        offlineMap = bit(14),
-        customDnd = bit(2),
-        multiSlotDnd = bit(140),
-        voiceAssistant = false, // TODO(B1): isVoiceControlSupported
+        hasCarpetSettings = settings.hasCarpetSettings,
+        hasFloorSettings = settings.hasFloorSettings,
+        hasFloorPattern = settings.hasFloorPattern,
+        hasDockSettings = settings.hasDockSettings,
+        hasAutoEmptySettings = settings.hasAutoEmptySettings,
+        hasObstacleSettings = settings.hasObstacleSettings,
+        chargingMode = settings.chargingMode,
+        adjustedBattery = settings.adjustedBattery,
+        offlineMap = settings.offlineMap,
+        customDnd = settings.customDnd,
+        multiSlotDnd = settings.multiSlotDnd,
+        voiceAssistant = settings.voiceAssistant,
+        childLock = settings.childLock,
         matter = bit(MATTER_FEATURE_BIT),
         dock = DockCapabilities(model, featureSet, nfs),
         mapTools = CurrentMapTools, // TODO(B3): official per-tool gates (Remove NFS 71, Floor Type RN 35, Furniture RN 36)

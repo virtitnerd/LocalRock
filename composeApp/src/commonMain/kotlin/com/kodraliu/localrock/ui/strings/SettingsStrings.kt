@@ -29,6 +29,26 @@ object SettingsStrings {
     const val PRODUCT_INFO = "Product Info" // verified
     const val FIRMWARE_UPDATES = "Firmware Updates" // verified
     const val BETA_FEATURES = "Beta features" // inferred
+    const val BETA_FEATURES_DETAIL = "Other options your robot reports" // inferred
+    const val HISTORY_LAST_DURATION = "Last cleaning duration" // verified
+    const val HISTORY_LAST_AREA = "Last cleaning area" // verified
+    const val HISTORY = "History" // verified
+    const val MAINTENANCE_DUE = "Some supplies need cleaning or replacing" // inferred
+    const val NO_VALUE = "--" // inferred
+    const val SCHEDULES_DETAIL = "Clean on a timetable" // inferred
+    const val CARPET_DETAIL = "Adjust settings to improve carpet cleaning performance." // verified
+    const val FLOOR_DETAIL = "Floor types, edges and deep cleaning" // inferred
+    const val DOCK_DETAIL = "Wash, empty and dry options" // inferred
+    const val OBSTACLE_DETAIL = "Intelligently recognizes and avoids obstacles that may block its way." // verified
+    const val MANAGE_MAPS_DETAIL = "Edit rooms, zones and saved maps" // inferred
+    const val ROBOT_VOICE_DETAIL = "Volume" // inferred
+    const val REMOTE_VIEWING_DETAIL = "Camera and video settings" // inferred
+    const val MATTER_DETAIL = "Add the robot to Apple Home, Google Home and more" // inferred
+    const val MORE_OPTIONS_DETAIL = "Do Not Disturb, charging, lights and child lock" // inferred
+    const val PIN_N_GO_DETAIL = "Send the robot to a spot on the map" // inferred
+    const val REMOTE_CONTROL_DETAIL = "Drive the robot by hand" // inferred
+    const val PRODUCT_INFO_DETAIL = "Name, model, firmware and serial number" // inferred
+    const val FIRMWARE_DETAIL = "Check for and install updates" // inferred
 
     // More Options page.
     const val DND = "Do Not Disturb Mode" // verified
@@ -44,12 +64,52 @@ object SettingsStrings {
     const val ADJUSTED_BATTERY_LEVEL = "Adjusted Battery Level" // verified
     const val FIND_ROBOT = "Find Robot" // verified
     const val SHOW_LAST_KNOWN_OFFLINE = "Show last-known state offline" // inferred
+    const val ON = "On" // verified
+    const val OFF = "Off" // verified
+    const val DND_DETAIL = "To minimize disturbance, some automatic operations will not be performed during the DND period." // verified
+    const val BUTTON_LIGHTS_DETAIL = "Lights on the robot's buttons" // inferred
+    const val CHILD_LOCK_DETAIL = "When the robot is stationary, the buttons on it are locked. When the robot is in motion, press any button to stop it." // verified
+    const val ADJUSTED_BATTERY_LEVEL_DETAIL = "The battery level will be calculated more accurately. Runtime may be slightly reduced to accommodate this adjustment." // verified
+    const val FIND_ROBOT_RINGING = "The robot is playing a sound" // inferred
+    const val MORE_ROBOT_OPTIONS = "Other options your robot reports" // inferred
+    const val LOCALROCK_CAPTION = "LocalRock" // inferred
+
+    // Charging Mode page.
+    const val SMART_CHARGING_DETAIL = "During charging, the robot will typically charge to 80% before slowly trickle charging to 100% to optimize battery performance." // verified
+    const val OFF_PEAK_CHARGING_DETAIL = "The robot will only fully charge during off-peak hours, while minimum power will be maintained at other times." // verified
+    const val OFF_PEAK_NOT_SET = "* No charging time set. Off-peak charging inactive." // verified
+    const val START = "Start" // verified
+    const val END = "End" // verified
+    const val SAME_TIME_WARNING = "The start and end time are the same. Please adjust them." // verified
+
+    // Product Info page.
+    const val NAME = "Name" // verified
+    const val RENAME = "Rename" // verified
+    const val DEVICE_MODEL = "Device Model" // verified
+    const val MODEL = "Model" // verified
+    const val SERIAL_NUMBER = "Serial Number" // verified
+    const val FIRMWARE_VERSION = "Firmware Version" // verified
+    const val SERVER = "Server" // inferred
+    const val DEVICE_ID = "Device ID" // inferred
+    const val UNKNOWN = "Unknown" // inferred
+    const val SAVE = "Save" // inferred
+    const val CANCEL = "Cancel" // verified
+    const val RENAMED = "Robot renamed" // inferred
+    const val RENAME_FAILED = "The robot could not be renamed" // inferred
+    const val RENAME_DEMO = "Robots cannot be renamed in demo mode" // inferred
 
     // Carpet Cleaning Setting mode cards (wire 0 Avoid, 1 Rise, 2 Vac & Mop, 3 Dynamic Lift).
     const val CARPET_VACUUM_ONLY = "Vacuum Only" // verified
     const val CARPET_AVOID = "Avoid Carpet" // verified
     const val CARPET_CROSS = "Cross" // verified
     const val CARPET_VAC_AND_MOP = "Vac & Mop" // verified
+    const val CARPET_DYNAMIC_LIFT = "Dynamic Lift" // verified
+    const val CARPET_VACUUM_ONLY_DETAIL = "Suitable for low pile carpets or mats. When the mop mount is attached, the robot will lift the mopping module and vacuum the carpet." // verified
+    const val CARPET_AVOID_DETAIL = "Suitable for low to medium pile carpets. The robot will avoid carpets altogether." // verified
+    const val CARPET_VAC_AND_MOP_DETAIL = "Suitable for environments where there is no carpet or where mats can be mopped (i.e. rubber mats)." // verified
+    const val CARPET_DYNAMIC_LIFT_DETAIL = "Applicable to mats or small-sized carpets. When a carpet is detected, the mop is lifted and water flow is stopped for carpet vacuuming." // inferred
+    const val CARPET_ADVANCED = "More Advanced Settings" // verified
+    const val CARPET_FOOTER = "* Carpet cleaning settings do not apply to custom carpets." // verified
 
     // Floor Cleaning Setting rows.
     const val SEQUENCE = "Sequence" // verified
@@ -86,6 +146,12 @@ object SettingsStrings {
     const val DOCK_MAINTENANCE = "Dock Maintanence" // verified
     const val FILL_AND_DRAIN = "Fill&Drain Settings" // verified
     const val DRAIN_ONBOARD_TANK = "Drain On-Board Water Tank" // verified
+    const val DRAIN_ONBOARD_TANK_DETAIL = "Empty through the dock" // inferred
+    const val DRAIN_CONFIRM_TITLE = "Empty the water tank?" // inferred
+    const val DRAIN_CONFIRM_TEXT = "The dock pumps the water out of the robot's built-in tank. Make sure the robot is on the dock." // inferred
+    const val DRAIN_CONFIRM = "Empty" // inferred
+    const val MOP_DRYING_ON = "Dries the mops on the dock after cleaning" // inferred
+    const val MOP_DRYING_OFF = "Mops are left wet on the dock" // inferred
 
     // Reactive Obstacle Avoidance page.
     const val OBSTACLE_PHOTOS = "Obstacle Photos" // verified
@@ -100,6 +166,7 @@ object SettingsStrings {
 
     // Robot Voice and Voice Assistant pages.
     const val VOLUME = "Volume" // verified
+    const val VOLUME_HINT = "Slide to adjust volume" // verified
     const val LANGUAGE = "Language" // verified
     const val CUSTOM_TONES = "Custom Tones" // verified
     const val VOICE_USE = "Use" // verified

@@ -73,9 +73,6 @@ class CapabilitiesTest {
             assertFalse(c.hasRoutineTab)
             assertFalse(c.hasAutoEmptySettings)
             assertFalse(c.hasObstacleSettings)
-            assertFalse(c.chargingMode)
-            assertFalse(c.adjustedBattery)
-            assertFalse(c.voiceAssistant)
             assertFalse(c.mapBackup)
             assertEquals(listOf(MainTab.FULL, MainTab.ROOM, MainTab.ZONE), c.mainTabs)
         }
