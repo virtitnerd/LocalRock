@@ -9,6 +9,15 @@ object RemoteStrings {
     const val ENTRY_REMINDER = "To prevent accidental damage, keep an eye on the robot." // verified
     const val PIN_N_GO = "Pin n Go" // verified
     const val GO_TO = "Go to" // verified
+    const val JOYSTICK_HINT = "Push up to drive, sideways to turn. Let go to stop." // inferred
+    const val BUTTONS_HINT = "Tap to move the robot" // inferred
+    const val BUTTONS_DURATION = "Each tap moves the robot for 1.5 seconds" // inferred
+    const val FORWARD = "Forward" // inferred
+    const val BACKWARD = "Backward" // inferred
+    const val TURN_LEFT = "Turn left" // inferred
+    const val TURN_RIGHT = "Turn right" // inferred
+    const val STOP = "Stop" // inferred
+    const val BACK = "Back" // inferred
 
     // Camera (Remote Viewing) screen.
     const val REMOTE_VIEWING = "Remote Viewing" // verified

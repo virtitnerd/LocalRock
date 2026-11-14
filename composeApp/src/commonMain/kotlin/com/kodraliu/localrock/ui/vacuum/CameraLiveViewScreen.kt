@@ -94,6 +94,8 @@ fun CameraLiveViewScreen(
     var panel by remember { mutableStateOf<CameraPanel?>(null) }
     var gearOpen by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
+    // Held at screen level so hiding the controls does not end remote control.
+    val rcLink = rememberRemoteControlLink(viewModel)
     val robotStatus by viewModel.repository.status.collectAsState()
     val petSearch by viewModel.repository.petSearchActive.collectAsState()
     val scope = rememberCoroutineScope()
@@ -211,8 +213,8 @@ fun CameraLiveViewScreen(
                             indication = null,
                         ) { controlsVisible = !controlsVisible },
                     )
-                    if (controlsVisible) CameraJoystick(
-                        viewModel,
+                    if (controlsVisible) RemoteJoystick(
+                        rcLink,
                         Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 24.dp, bottom = 24.dp),
                     )
                     if (controlsVisible) CameraSidePanel(
