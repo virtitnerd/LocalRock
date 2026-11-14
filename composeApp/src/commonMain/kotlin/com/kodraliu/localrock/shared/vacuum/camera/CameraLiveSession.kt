@@ -67,6 +67,29 @@ class CameraLiveSession(private val session: VacuumSession) {
     private val _peer = MutableStateFlow<RtcPeer?>(null)
     val peer: StateFlow<RtcPeer?> = _peer
 
+    /** SD, HD, FHD or AUTO, asked for when the stream starts like the official app does. */
+    var quality: String = "HD"
+        private set
+
+    /** Restarts the stream asking the robot for [newQuality]. */
+    fun restartWithQuality(pin: String, newQuality: String) {
+        quality = newQuality
+        connectJob?.cancel()
+        closePeer()
+        _state.value = State.Connecting("Switching to $newQuality…")
+        connectJob = scope.launch {
+            try {
+                runCatching { session.stopCameraPreview(CLIENT_ID) }
+                delay(800)
+                connect(pin)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                fail(e)
+            }
+        }
+    }
+
     /** Whether the last attempt was to register a new PIN, so activation can finish that step. */
     private var registeringPin = false
 
@@ -210,7 +233,8 @@ class CameraLiveSession(private val session: VacuumSession) {
         }
 
         _state.value = State.Connecting("Starting camera…")
-        val startResp = session.startCameraPreview(CLIENT_ID, passwordMd5)
+        val startResp = session.startCameraPreview(CLIENT_ID, passwordMd5, quality)
+        println("CameraQuality asked=$quality reply=${startResp.result ?: startResp.error}")
         if (startResp.error != null) {
             if (errorCode(startResp.error) == ERR_CAMERA_PREVIEW_DENIED) {
                 val status = runCatching { firstInt(session.getCameraStatus().result) }.getOrNull()
