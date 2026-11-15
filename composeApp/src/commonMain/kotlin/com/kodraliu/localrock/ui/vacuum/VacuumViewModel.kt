@@ -13,6 +13,7 @@ import com.kodraliu.localrock.shared.vacuum.RoomType
 import com.kodraliu.localrock.shared.vacuum.VacuumErrorCodes
 import com.kodraliu.localrock.shared.vacuum.VacuumRepository
 import com.kodraliu.localrock.shared.vacuum.productDisplayName
+import com.kodraliu.localrock.shared.vacuum.isFastRouteSupported
 import com.kodraliu.localrock.shared.vacuum.isSmartPlanSupported
 import com.kodraliu.localrock.shared.vacuum.isWaterSlideSupported
 import kotlinx.coroutines.Job
@@ -45,6 +46,7 @@ class VacuumViewModel(
     val modelDisplayName: String? = productDisplayName(container.deviceRepository.productsByDuid.value[duid])
     val firmwareVersion: String? = device.fv
     private val serverFeatureSet = device.newFeatureSet
+    val supportsFastRoute: Boolean = isFastRouteSupported(device.newFeatureSet)
     val dockCapabilities = DockCapabilities(modelName, device.featureSet, device.newFeatureSet)
     val betaFeatureDefs = supportedBetaFeatures(device.newFeatureSet)
     val unlistedFeatures = unlistedAdvertisedFeatures(device.newFeatureSet)
