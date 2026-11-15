@@ -27,4 +27,20 @@ interface MqttNativeTransport {
 }
 
 
+/** A transport that can also reach the broker as MQTT over WebSocket. */
+interface MqttWebSocketTransport {
+    fun openWebSocket(
+        url: String,
+        username: String,
+        password: String,
+        clientId: String,
+        keepAliveSeconds: Int,
+        onConnected: () -> Unit,
+        onFailed: (reason: String) -> Unit,
+        onMessage: (topic: String, payload: ByteArray) -> Unit,
+        onDisconnected: () -> Unit,
+    ): MqttNativeConnection
+}
+
+
 expect fun defaultMqttTransport(): MqttNativeTransport?
