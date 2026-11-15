@@ -69,6 +69,8 @@ class MqttClientStartTest {
         var directOpens = 0
         var webSocketOpens = 0
         var dropFirstWebSocket = false
+        var atHome: Boolean? = null
+        var directWorks = false
         var webSocketUrl: String? = null
         override fun open(
             host: String,
@@ -84,8 +86,14 @@ class MqttClientStartTest {
             onDisconnected: () -> Unit,
         ): MqttNativeConnection {
             directOpens++
+            if (directWorks) {
+                onConnected()
+                return FakeConnection()
+            }
             throw RuntimeException("connect timed out")
         }
+
+        override fun resolvesToPrivateAddress(host: String): Boolean? = atHome
 
         override fun openWebSocket(
             url: String,
@@ -199,6 +207,47 @@ class MqttClientStartTest {
             client.start(creds.copy(webSocketUrl = "wss://api.example.com/mqtt"), clientId = "test")
             withTimeout(10_000) { while (transport.webSocketOpens < 2) delay(20) }
             assertEquals(1, transport.directOpens)
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun a_public_dns_answer_goes_straight_to_the_websocket() = runTest {
+        val transport = AwayTransport().also { it.atHome = false }
+        val client = MqttClient(transport)
+        try {
+            client.start(creds.copy(webSocketUrl = "wss://api.example.com/mqtt"), clientId = "test")
+            client.connected.first { it }
+            assertEquals(0, transport.directOpens)
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun private_addresses_are_recognised() {
+        fun ip(vararg v: Int) = ByteArray(v.size) { v[it].toByte() }
+        assertTrue(isPrivateNetworkAddress(ip(10, 0, 30, 15)))
+        assertTrue(isPrivateNetworkAddress(ip(192, 168, 1, 4)))
+        assertTrue(isPrivateNetworkAddress(ip(172, 20, 0, 1)))
+        assertTrue(isPrivateNetworkAddress(ip(100, 101, 2, 3)))
+        assertFalse(isPrivateNetworkAddress(ip(172, 32, 0, 1)))
+        assertFalse(isPrivateNetworkAddress(ip(104, 21, 46, 237)))
+        assertTrue(isPrivateNetworkAddress(ip(0xFD, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)))
+        assertFalse(isPrivateNetworkAddress(ip(0x26, 0x06, 0x47, 0, 0x30, 0x37, 0, 0, 0, 0, 0, 0, 0xAC, 0x43, 0x8F, 0x29)))
+    }
+
+    @Test
+    fun coming_home_while_on_the_websocket_switches_to_the_direct_port() = runBlocking {
+        val transport = AwayTransport().also { it.atHome = false; it.directWorks = true }
+        val client = MqttClient(transport, homeCheckIntervalMs = 50)
+        try {
+            client.start(creds.copy(webSocketUrl = "wss://api.example.com/mqtt"), clientId = "test")
+            withTimeout(10_000) { while (transport.webSocketOpens < 1) delay(20) }
+            transport.atHome = true
+            withTimeout(10_000) { while (transport.directOpens < 1) delay(20) }
+            assertEquals(1, transport.webSocketOpens)
         } finally {
             client.disconnect()
         }

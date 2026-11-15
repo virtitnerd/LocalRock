@@ -8,6 +8,7 @@ import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import java.net.InetAddress
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -38,6 +39,13 @@ internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
         val scheme = if (tls) "ssl" else "tcp"
         return connect("$scheme://$host:$port", username, password, clientId, keepAliveSeconds,
             onConnected, onFailed, onMessage, onDisconnected)
+    }
+
+    override fun resolvesToPrivateAddress(host: String): Boolean? = try {
+        val addresses = InetAddress.getAllByName(host)
+        if (addresses.isEmpty()) null else addresses.all { isPrivateNetworkAddress(it.address) }
+    } catch (e: Exception) {
+        null
     }
 
     // Paho speaks MQTT over WebSocket itself for ws:// and wss:// server URIs.

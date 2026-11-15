@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,7 +32,10 @@ data class MqttMessage(val topic: String, val payload: ByteArray) {
 class MqttClientException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
 
-class MqttClient(private val transport: MqttNativeTransport) {
+class MqttClient(
+    private val transport: MqttNativeTransport,
+    private val homeCheckIntervalMs: Long = 15_000L,
+) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _messages = MutableSharedFlow<MqttMessage>(extraBufferCapacity = 64)
     val messages: SharedFlow<MqttMessage> = _messages
@@ -201,6 +205,15 @@ class MqttClient(private val transport: MqttNativeTransport) {
             // Re-read every iteration: credentials can be swapped out between attempts, and the
             // old code captured them once so a refreshed session could never take effect.
             val p = mutex.withLock { params } ?: return
+            val hintTransport = transport as? MqttWebSocketTransport
+            if (failedAttempts == 0 && p.creds.webSocketUrl != null && hintTransport != null) {
+                // Split DNS tells us where we are: a private answer means home, a public one means away.
+                val atHome = withContext(Dispatchers.Default) {
+                    withTimeoutOrNull(HOME_LOOKUP_MS) { hintTransport.resolvesToPrivateAddress(p.creds.host) }
+                }
+                if (atHome != null) preferWebSocket = !atHome
+                println("[VacLocal] MQTT route: home=$atHome -> ${if (preferWebSocket) "websocket" else "direct"}")
+            }
             val connectResult = CompletableDeferred<Unit>()
             val disconnected = CompletableDeferred<Unit>()
             var c: MqttNativeConnection? = null
@@ -262,7 +275,29 @@ class MqttClient(private val transport: MqttNativeTransport) {
                 println("[VacLocal] MQTT connected via $endpoint user=${p.creds.username}")
                 resubscribeAll(c)
 
-                disconnected.await()
+                // The network can change under a live connection; re-check where we are now.
+                val watcher = if (p.creds.webSocketUrl != null && hintTransport != null) {
+                    scope.launch {
+                        while (isActive) {
+                            delay(homeCheckIntervalMs)
+                            val atHome = withTimeoutOrNull(HOME_LOOKUP_MS) {
+                                withContext(Dispatchers.Default) { hintTransport.resolvesToPrivateAddress(p.creds.host) }
+                            }
+                            if (atHome != null && atHome == viaWebSocket) {
+                                println("[VacLocal] MQTT network changed (home=$atHome), switching route")
+                                forceReconnect()
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    null
+                }
+                try {
+                    disconnected.await()
+                } finally {
+                    watcher?.cancel()
+                }
                 _connected.value = false
                 println("[VacLocal] MQTT disconnected — will reconnect")
             } catch (e: CancellationException) {
@@ -331,6 +366,7 @@ class MqttClient(private val transport: MqttNativeTransport) {
         /** Consecutive reconnect failures before asking for fresh credentials. */
         const val RELOGIN_AFTER_ATTEMPTS = 3
         const val DIRECT_PROBE_MS = 2_500L
+        const val HOME_LOOKUP_MS = 1_500L
         const val WEBSOCKET_FAILURES_BEFORE_DIRECT = 3
         const val MAX_BACKOFF_MS = 30_000L
     }

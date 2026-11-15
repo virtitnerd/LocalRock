@@ -29,6 +29,12 @@ interface MqttNativeTransport {
 
 /** A transport that can also reach the broker as MQTT over WebSocket. */
 interface MqttWebSocketTransport {
+    /**
+     * Whether [host] resolves to a private network address, which means the phone is at home on a
+     * server with split DNS. Null when it cannot tell, such as when the name does not resolve.
+     */
+    fun resolvesToPrivateAddress(host: String): Boolean?
+
     fun openWebSocket(
         url: String,
         username: String,
