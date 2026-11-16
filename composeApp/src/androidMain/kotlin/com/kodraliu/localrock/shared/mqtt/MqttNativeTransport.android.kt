@@ -8,6 +8,8 @@ import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import java.net.InetAddress
+import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -19,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 actual fun defaultMqttTransport(): MqttNativeTransport? = PahoTransport()
 
-internal class PahoTransport : MqttNativeTransport {
+internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
 
     override fun open(
         host: String,
@@ -34,11 +36,48 @@ internal class PahoTransport : MqttNativeTransport {
         onMessage: (topic: String, payload: ByteArray) -> Unit,
         onDisconnected: () -> Unit,
     ): MqttNativeConnection {
-        val dropped = AtomicBoolean(false)
         val scheme = if (tls) "ssl" else "tcp"
-        val client = MqttAsyncClient("$scheme://$host:$port", clientId, MemoryPersistence())
+        return connect("$scheme://$host:$port", username, password, clientId, keepAliveSeconds,
+            onConnected, onFailed, onMessage, onDisconnected)
+    }
+
+    override fun resolvesToPrivateAddress(host: String): Boolean? = try {
+        val addresses = InetAddress.getAllByName(host)
+        if (addresses.isEmpty()) null else addresses.all { isPrivateNetworkAddress(it.address) }
+    } catch (e: Exception) {
+        null
+    }
+
+    // Paho speaks MQTT over WebSocket itself for ws:// and wss:// server URIs.
+    override fun openWebSocket(
+        url: String,
+        username: String,
+        password: String,
+        clientId: String,
+        keepAliveSeconds: Int,
+        onConnected: () -> Unit,
+        onFailed: (reason: String) -> Unit,
+        onMessage: (topic: String, payload: ByteArray) -> Unit,
+        onDisconnected: () -> Unit,
+    ): MqttNativeConnection = connect(url, username, password, clientId, keepAliveSeconds,
+        onConnected, onFailed, onMessage, onDisconnected)
+
+    private fun connect(
+        serverUri: String,
+        username: String,
+        password: String,
+        clientId: String,
+        keepAliveSeconds: Int,
+        onConnected: () -> Unit,
+        onFailed: (reason: String) -> Unit,
+        onMessage: (topic: String, payload: ByteArray) -> Unit,
+        onDisconnected: () -> Unit,
+    ): MqttNativeConnection {
+        val dropped = AtomicBoolean(false)
+        val client = MqttAsyncClient(serverUri, clientId, MemoryPersistence())
         client.setCallback(object : MqttCallback {
             override fun connectionLost(cause: Throwable?) {
+                println("[VacLocal] MQTT connection lost: ${cause?.let { it::class.simpleName + ": " + it.message }}")
                 if (dropped.compareAndSet(false, true)) onDisconnected()
             }
 
@@ -58,6 +97,10 @@ internal class PahoTransport : MqttNativeTransport {
             maxInflight = MAX_INFLIGHT
             userName = username
             setPassword(password.toCharArray())
+            // Cloudflare challenges a handshake with no User-Agent, which Paho does not send by itself.
+            if (serverUri.startsWith("ws", ignoreCase = true)) {
+                customWebSocketHeaders = Properties().apply { setProperty("User-Agent", "LocalRock/Android") }
+            }
         }
         client.connect(options, null, object : IMqttActionListener {
             override fun onSuccess(asyncActionToken: IMqttToken?) = onConnected()

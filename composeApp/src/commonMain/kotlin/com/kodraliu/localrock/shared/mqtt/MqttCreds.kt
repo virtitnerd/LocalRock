@@ -9,6 +9,8 @@ data class MqttCreds(
     val tls: Boolean,
     val username: String,
     val password: String,
+    /** Same broker as MQTT over WebSocket on the API host, for networks that only pass HTTPS. */
+    val webSocketUrl: String? = null,
 )
 
 class MqttCredsException(message: String) : RuntimeException(message)
@@ -22,6 +24,7 @@ fun deriveMqttCreds(rriot: Rriot): MqttCreds {
         tls = parsed.tls,
         username = md5Hex(rriot.u + ":" + rriot.k).substring(2, 10),
         password = md5Hex(rriot.s + ":" + rriot.k).substring(16),
+        webSocketUrl = mqttWebSocketUrl(rriot.r.a),
     )
 }
 
@@ -58,3 +61,13 @@ private val HEX = charArrayOf(
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 )
+
+/** wss://<api host>/mqtt for an https API base URL, or null when there is none. */
+fun mqttWebSocketUrl(apiBaseUrl: String): String? {
+    val base = apiBaseUrl.trim().trimEnd('/')
+    return when {
+        base.startsWith("https://", ignoreCase = true) -> "wss://" + base.substring(8) + "/mqtt"
+        base.startsWith("http://", ignoreCase = true) -> "ws://" + base.substring(7) + "/mqtt"
+        else -> null
+    }
+}
