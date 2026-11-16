@@ -1,5 +1,7 @@
 package com.kodraliu.localrock.shared.settings
 
+import com.kodraliu.localrock.shared.http.ServerHeader
+import com.kodraliu.localrock.shared.http.ServerHeaders
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,7 @@ private const val KEY_NOTIFY_FINISHED = "notify_finished"
 private const val KEY_NOTIFY_DOCK = "notify_dock"
 private const val KEY_NOTIFY_BACKGROUND = "notify_background"
 private const val KEY_NOTIFY_PROGRESS = "notify_progress"
+private const val KEY_CUSTOM_HEADERS = "custom_headers"
 
 class AppSettings(private val settings: Settings) {
 
@@ -37,6 +40,26 @@ class AppSettings(private val settings: Settings) {
     private val _serverBaseUrl =
         MutableStateFlow(settings.getStringOrNull(KEY_SERVER_BASE_URL))
     val serverBaseUrl: StateFlow<String?> = _serverBaseUrl.asStateFlow()
+
+    // Plain preferences like the rest of the settings, not encrypted storage.
+    private val _customHeaders = MutableStateFlow(ServerHeaders.decode(settings.getStringOrNull(KEY_CUSTOM_HEADERS)))
+    val customHeaders: StateFlow<List<ServerHeader>> = _customHeaders.asStateFlow()
+
+    /** Saves [headers] and returns null, or returns the validation problem and saves nothing. */
+    fun setCustomHeaders(headers: List<ServerHeader>): String? {
+        ServerHeaders.validate(headers)?.let { return it }
+        if (headers.isEmpty()) settings.remove(KEY_CUSTOM_HEADERS)
+        else settings.putString(KEY_CUSTOM_HEADERS, ServerHeaders.encode(headers))
+        _customHeaders.value = headers
+        return null
+    }
+
+    /** The validated custom headers as a map, for code that opens its own connection to the server. */
+    fun customHeadersMap(): Map<String, String> = _customHeaders.value.associate { it.name to it.value }
+
+    /** The custom headers for [url], or none unless it is on the configured server's host. */
+    fun headersFor(url: String): Map<String, String> =
+        ServerHeaders.headersFor(_customHeaders.value, url, _serverBaseUrl.value)
 
     private val _introSeen = MutableStateFlow(settings.getBoolean(KEY_INTRO_SEEN, false))
     val introSeen: StateFlow<Boolean> = _introSeen.asStateFlow()
