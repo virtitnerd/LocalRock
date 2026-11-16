@@ -69,6 +69,8 @@ fun SettingsScreen(onDone: () -> Unit, allowCancel: Boolean) {
 
     var url by remember { mutableStateOf(savedUrl ?: "") }
     var showWhatsNew by remember { mutableStateOf(false) }
+    var showHeaders by remember { mutableStateOf(false) }
+    val customHeaders by container.appSettings.customHeaders.collectAsState()
     val whatsNew = whatsNewFor(APP_VERSION)
 
     Scaffold(
@@ -148,6 +150,16 @@ fun SettingsScreen(onDone: () -> Unit, allowCancel: Boolean) {
                         onClick = { container.authRepository.enterDemo() },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Explore the demo (no server needed)") }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                SectionLabel("Advanced")
+                OutlinedButton(onClick = { showHeaders = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        if (customHeaders.isEmpty()) "Custom headers"
+                        else "Custom headers (${customHeaders.size})",
+                    )
                 }
 
                 // Alerts are about robots, and there are none to watch before signing in.
@@ -232,6 +244,10 @@ fun SettingsScreen(onDone: () -> Unit, allowCancel: Boolean) {
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+
+    if (showHeaders) {
+        CustomHeadersDialog(settings = container.appSettings, onDismiss = { showHeaders = false })
     }
 
     if (showWhatsNew && whatsNew != null) {
