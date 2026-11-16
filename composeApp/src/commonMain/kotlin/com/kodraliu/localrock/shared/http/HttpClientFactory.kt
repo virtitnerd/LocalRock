@@ -24,6 +24,8 @@ val ProdJson: Json = Json {
 class HttpClientConfig(
     val baseUrlProvider: () -> String?,
     val credsProvider: () -> HawkCreds?,
+    val customHeadersFor: (url: String) -> Map<String, String> = { emptyMap() },
+    val customHeaderNames: () -> Set<String> = { emptySet() },
 )
 
 expect fun platformHttpLogger(): Logger
@@ -51,6 +53,11 @@ fun buildVacLocalHttpClient(config: HttpClientConfig): HttpClient =
 
         install(HawkAuth) {
             credsProvider = config.credsProvider
+        }
+
+        install(CustomHeaders) {
+            headersFor = config.customHeadersFor
+            names = config.customHeaderNames
         }
 
         install(DefaultRequest) {
@@ -85,6 +92,11 @@ fun buildAdminHttpClient(config: HttpClientConfig): HttpClient =
         }
 
         install(HttpCookies)
+
+        install(CustomHeaders) {
+            headersFor = config.customHeadersFor
+            names = config.customHeaderNames
+        }
 
         install(DefaultRequest) {
             val base = config.baseUrlProvider()

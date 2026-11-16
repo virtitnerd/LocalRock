@@ -66,6 +66,8 @@ class AppContainer(
         HttpClientConfig(
             baseUrlProvider = { appSettings.serverBaseUrl.value },
             credsProvider = { authRepository.hawkCreds() },
+            customHeadersFor = appSettings::headersFor,
+            customHeaderNames = { appSettings.customHeaders.value.map { it.name }.toSet() },
         )
     )
 
@@ -73,6 +75,8 @@ class AppContainer(
         HttpClientConfig(
             baseUrlProvider = { appSettings.serverBaseUrl.value },
             credsProvider = { null },
+            customHeadersFor = appSettings::headersFor,
+            customHeaderNames = { appSettings.customHeaders.value.map { it.name }.toSet() },
         )
     )
 
