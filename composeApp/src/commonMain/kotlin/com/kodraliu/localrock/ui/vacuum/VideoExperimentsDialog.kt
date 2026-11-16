@@ -68,6 +68,13 @@ fun VideoExperimentsDialog(
                 Choice("Log SDP offer and answer (SdpDump)", listOf("Off" to false, "On" to true), value.dumpSdp) {
                     onChange(value.copy(dumpSdp = it))
                 }
+                Choice("Camera over WebSocket (experimental)", listOf("Off" to false, "On" to true), value.cameraOverWebSocket) {
+                    onChange(value.copy(cameraOverWebSocket = it))
+                }
+                Text(
+                    "Tunnels the camera relay through the server's /turn WebSocket; needs a server with the experimental TURN WebSocket option on.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         confirmButton = { TextButton(onClick = { onRestart(); onClose() }) { Text("Restart stream") } },

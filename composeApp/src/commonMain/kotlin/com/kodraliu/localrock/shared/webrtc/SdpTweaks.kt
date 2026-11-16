@@ -13,12 +13,13 @@ data class VideoExperiments(
     val googleBitrateKbps: Int = 0,
     val imageAttr: Boolean = false,
     val dumpSdp: Boolean = false,
+    val cameraOverWebSocket: Boolean = false,
 ) {
     val isDefault: Boolean get() = this == VideoExperiments()
 
     fun encode(): String = listOf(
         "dir=${direction.name}", "order=${codecOrder.name}", "keep=$keepVp8Vp9", "bw=$bandwidthKbps",
-        "goog=$googleBitrateKbps", "attr=$imageAttr", "dump=$dumpSdp",
+        "goog=$googleBitrateKbps", "attr=$imageAttr", "dump=$dumpSdp", "ws=$cameraOverWebSocket",
     ).joinToString(";")
 
     companion object {
@@ -34,6 +35,7 @@ data class VideoExperiments(
                 googleBitrateKbps = map["goog"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
                 imageAttr = map["attr"] == "true",
                 dumpSdp = map["dump"] == "true",
+                cameraOverWebSocket = map["ws"] == "true",
             )
         }
     }
