@@ -51,6 +51,7 @@ internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
     // Paho speaks MQTT over WebSocket itself for ws:// and wss:// server URIs.
     override fun openWebSocket(
         url: String,
+        headers: Map<String, String>,
         username: String,
         password: String,
         clientId: String,
@@ -60,7 +61,7 @@ internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
         onMessage: (topic: String, payload: ByteArray) -> Unit,
         onDisconnected: () -> Unit,
     ): MqttNativeConnection = connect(url, username, password, clientId, keepAliveSeconds,
-        onConnected, onFailed, onMessage, onDisconnected)
+        onConnected, onFailed, onMessage, onDisconnected, headers)
 
     private fun connect(
         serverUri: String,
@@ -72,6 +73,7 @@ internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
         onFailed: (reason: String) -> Unit,
         onMessage: (topic: String, payload: ByteArray) -> Unit,
         onDisconnected: () -> Unit,
+        extraHeaders: Map<String, String> = emptyMap(),
     ): MqttNativeConnection {
         val dropped = AtomicBoolean(false)
         val client = MqttAsyncClient(serverUri, clientId, MemoryPersistence())
@@ -99,7 +101,10 @@ internal class PahoTransport : MqttNativeTransport, MqttWebSocketTransport {
             setPassword(password.toCharArray())
             // Cloudflare challenges a handshake with no User-Agent, which Paho does not send by itself.
             if (serverUri.startsWith("ws", ignoreCase = true)) {
-                customWebSocketHeaders = Properties().apply { setProperty("User-Agent", "LocalRock/Android") }
+                customWebSocketHeaders = Properties().apply {
+                    extraHeaders.forEach { (k, v) -> setProperty(k, v) }
+                    setProperty("User-Agent", "LocalRock/Android")
+                }
             }
         }
         client.connect(options, null, object : IMqttActionListener {

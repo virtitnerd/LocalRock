@@ -96,7 +96,10 @@ class AppContainer(
 
     val mqttClient: MqttClient = MqttClient(
         mqttTransport ?: error("No MQTT transport available — iOS must inject one via MainViewController(mqttTransport:)")
-    )
+    ).also { client ->
+        // The WebSocket URL is built from the server base URL, so its host is the server's.
+        client.extraHeaders = { appSettings.headersFor(appSettings.serverBaseUrl.value.orEmpty()) }
+    }
     private val mqttMutex = Mutex()
 
     /** True while the MQTT supervisor runs for the signed-in session. */

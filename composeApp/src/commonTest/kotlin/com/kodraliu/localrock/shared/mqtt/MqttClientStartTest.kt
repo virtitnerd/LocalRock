@@ -72,6 +72,7 @@ class MqttClientStartTest {
         var atHome: Boolean? = null
         var directWorks = false
         var webSocketUrl: String? = null
+        var webSocketHeaders: Map<String, String>? = null
         override fun open(
             host: String,
             port: Int,
@@ -97,6 +98,7 @@ class MqttClientStartTest {
 
         override fun openWebSocket(
             url: String,
+            headers: Map<String, String>,
             username: String,
             password: String,
             clientId: String,
@@ -107,6 +109,7 @@ class MqttClientStartTest {
             onDisconnected: () -> Unit,
         ): MqttNativeConnection {
             webSocketUrl = url
+            webSocketHeaders = headers
             webSocketOpens++
             onConnected()
             if (dropFirstWebSocket && webSocketOpens == 1) onDisconnected()
@@ -186,6 +189,33 @@ class MqttClientStartTest {
             client.connected.first { it }
             assertEquals(1, transport.directOpens)
             assertEquals("wss://api.example.com/mqtt", transport.webSocketUrl)
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun custom_headers_reach_the_websocket_route() = runTest {
+        val transport = AwayTransport().also { it.atHome = false }
+        val client = MqttClient(transport).also { it.extraHeaders = { mapOf("CF-Access-Client-Id" to "id") } }
+        try {
+            client.start(creds.copy(webSocketUrl = "wss://api.example.com/mqtt"), clientId = "test")
+            client.connected.first { it }
+            assertEquals(mapOf("CF-Access-Client-Id" to "id"), transport.webSocketHeaders)
+        } finally {
+            client.disconnect()
+        }
+    }
+
+    @Test
+    fun custom_headers_are_not_sent_on_the_direct_route() = runTest {
+        val transport = AwayTransport().also { it.atHome = true; it.directWorks = true }
+        val client = MqttClient(transport).also { it.extraHeaders = { mapOf("CF-Access-Client-Id" to "id") } }
+        try {
+            client.start(creds.copy(webSocketUrl = "wss://api.example.com/mqtt"), clientId = "test")
+            client.connected.first { it }
+            assertEquals(1, transport.directOpens)
+            assertEquals(null, transport.webSocketHeaders)
         } finally {
             client.disconnect()
         }

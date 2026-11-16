@@ -43,6 +43,10 @@ class MqttClient(
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected
 
+    /** Extra WebSocket handshake headers, read for every attempt; the direct route never sends them. */
+    @Volatile
+    var extraHeaders: () -> Map<String, String> = { emptyMap() }
+
     private val mutex = Mutex()
 
     /**
@@ -245,7 +249,7 @@ class MqttClient(
                 endpoint = if (viaWebSocket) wsUrl!! else "${p.creds.host}:${p.creds.port}"
                 c = if (viaWebSocket) {
                     wsTransport!!.openWebSocket(
-                        wsUrl!!, p.creds.username, p.creds.password, p.clientId, p.keepAliveSeconds,
+                        wsUrl!!, extraHeaders(), p.creds.username, p.creds.password, p.clientId, p.keepAliveSeconds,
                         onConnected, onFailed, onMessage, onDisconnected,
                     )
                 } else {

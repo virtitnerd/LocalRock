@@ -35,8 +35,10 @@ interface MqttWebSocketTransport {
      */
     fun resolvesToPrivateAddress(host: String): Boolean?
 
+    /** [headers] go on the upgrade request next to the transport's own, which they must not replace. */
     fun openWebSocket(
         url: String,
+        headers: Map<String, String>,
         username: String,
         password: String,
         clientId: String,
