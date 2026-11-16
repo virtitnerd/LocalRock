@@ -50,6 +50,8 @@ kotlin {
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinxJson)
             implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.websockets)
+            implementation(libs.ktor.network)
             implementation(libs.multiplatformSettings)
             implementation(libs.multiplatformSettings.coroutines)
             implementation(libs.kotlincrypto.hash.md)
