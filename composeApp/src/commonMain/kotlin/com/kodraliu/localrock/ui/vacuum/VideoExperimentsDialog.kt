@@ -75,6 +75,13 @@ fun VideoExperimentsDialog(
                     "Tunnels the camera relay through the server's /turn WebSocket; needs a server with the experimental TURN WebSocket option on.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Choice("Relay only (experimental)", listOf("Off" to false, "On" to true), value.relayOnly) {
+                    onChange(value.copy(relayOnly = it))
+                }
+                Text(
+                    "Accepts only relay candidates, so the video has to go through the TURN relay even on your home network. For testing the tunnel; the picture is slower.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         confirmButton = { TextButton(onClick = { onRestart(); onClose() }) { Text("Restart stream") } },

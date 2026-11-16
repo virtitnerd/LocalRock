@@ -135,6 +135,7 @@ internal class AndroidRtcPeer(iceServers: List<RtcIceServer>, private val experi
         }
         val config = PeerConnection.RTCConfiguration(servers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            if (experiments.relayOnly) iceTransportsType = PeerConnection.IceTransportsType.RELAY
         }
         pc = requireNotNull(peerConnectionFactory.createPeerConnection(config, Observer())) {
             "createPeerConnection returned null"

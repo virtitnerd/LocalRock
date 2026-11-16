@@ -14,12 +14,14 @@ data class VideoExperiments(
     val imageAttr: Boolean = false,
     val dumpSdp: Boolean = false,
     val cameraOverWebSocket: Boolean = false,
+    /** Experimental: accept only relay candidates, so the video has to go through TURN even on the home network. */
+    val relayOnly: Boolean = false,
 ) {
     val isDefault: Boolean get() = this == VideoExperiments()
 
     fun encode(): String = listOf(
         "dir=${direction.name}", "order=${codecOrder.name}", "keep=$keepVp8Vp9", "bw=$bandwidthKbps",
-        "goog=$googleBitrateKbps", "attr=$imageAttr", "dump=$dumpSdp", "ws=$cameraOverWebSocket",
+        "goog=$googleBitrateKbps", "attr=$imageAttr", "dump=$dumpSdp", "ws=$cameraOverWebSocket", "relay=$relayOnly",
     ).joinToString(";")
 
     companion object {
@@ -36,6 +38,7 @@ data class VideoExperiments(
                 imageAttr = map["attr"] == "true",
                 dumpSdp = map["dump"] == "true",
                 cameraOverWebSocket = map["ws"] == "true",
+                relayOnly = map["relay"] == "true",
             )
         }
     }

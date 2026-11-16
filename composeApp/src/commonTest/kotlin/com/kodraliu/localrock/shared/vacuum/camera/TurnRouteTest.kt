@@ -66,4 +66,14 @@ class TurnRouteTest {
         val on = VideoExperiments(cameraOverWebSocket = true)
         assertTrue(VideoExperiments.decode(on.encode()).cameraOverWebSocket)
     }
+
+    @Test
+    fun relay_only_is_off_by_default_and_survives_a_round_trip() {
+        assertFalse(VideoExperiments().relayOnly)
+        assertFalse(VideoExperiments.decode(VideoExperiments().encode()).relayOnly)
+        val on = VideoExperiments(relayOnly = true, cameraOverWebSocket = true)
+        val back = VideoExperiments.decode(on.encode())
+        assertTrue(back.relayOnly)
+        assertTrue(back.cameraOverWebSocket)
+    }
 }
