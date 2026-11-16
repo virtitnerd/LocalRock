@@ -21,7 +21,7 @@ class HawkAuthConfig {
     var nonceProvider: () -> String = { defaultNonce() }
 }
 
-private fun defaultNonce(): String {
+internal fun defaultNonce(): String {
     val bytes = ByteArray(8).also { Random.nextBytes(it) }
     return bytes.joinToString("") { ((it.toInt() and 0xFF).toString(16)).padStart(2, '0') }
 }
