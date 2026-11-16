@@ -82,7 +82,15 @@ fun CameraLiveViewScreen(
 ) {
     val container = LocalAppContainer.current
     val duid = viewModel.repository.duid
-    val liveSession = remember { viewModel.cameraSession().also { it.experiments = container.appSettings.videoExperiments() } }
+    val liveSession = remember {
+        viewModel.cameraSession().also {
+            it.experiments = container.appSettings.videoExperiments()
+            it.tunnelSource = CameraLiveSession.TunnelSource(
+                serverBaseUrl = { container.appSettings.serverBaseUrl.value },
+                creds = { container.authRepository.hawkCreds() },
+            )
+        }
+    }
     val state by liveSession.state.collectAsState()
     val peer by liveSession.peer.collectAsState()
     val pinLockSeconds by liveSession.pinLockSeconds.collectAsState()

@@ -1,5 +1,9 @@
 package com.kodraliu.localrock.shared.vacuum.camera
 
+import com.kodraliu.localrock.shared.auth.HawkCreds
+import com.kodraliu.localrock.shared.http.currentEpochSeconds
+import com.kodraliu.localrock.shared.http.defaultNonce
+import com.kodraliu.localrock.shared.mqtt.isAtHome
 import com.kodraliu.localrock.shared.vacuum.VacuumSession
 import com.kodraliu.localrock.shared.vacuum.checkHomesecPassword
 import com.kodraliu.localrock.shared.vacuum.getCameraStatus
@@ -18,6 +22,7 @@ import com.kodraliu.localrock.shared.webrtc.RtcConnectionState
 import com.kodraliu.localrock.shared.webrtc.RtcIceCandidate
 import com.kodraliu.localrock.shared.webrtc.RtcIceServer
 import com.kodraliu.localrock.shared.webrtc.RtcPeer
+import com.kodraliu.localrock.shared.webrtc.TurnTunnel
 import com.kodraliu.localrock.shared.webrtc.VideoExperiments
 import com.kodraliu.localrock.shared.webrtc.createRtcPeer
 import kotlinx.coroutines.CancellationException
@@ -83,6 +88,16 @@ class CameraLiveSession(private val session: VacuumSession) {
 
     /** Debug offer switches, read each time a stream starts. */
     var experiments: VideoExperiments = VideoExperiments()
+
+    /** What the experimental TURN WebSocket tunnel needs; null leaves the relay untouched. */
+    class TunnelSource(val serverBaseUrl: () -> String?, val creds: () -> HawkCreds?)
+
+    var tunnelSource: TunnelSource? = null
+
+    /** Home or away for [host]; replaceable so the route can be tested. */
+    internal var homeCheck: suspend (String) -> Boolean? = { isAtHome(it) }
+
+    private var tunnel: TurnTunnel? = null
 
     /** Restarts the stream asking the robot for [newQuality]. */
     fun restartWithQuality(pin: String, newQuality: String) {
@@ -230,7 +245,32 @@ class CameraLiveSession(private val session: VacuumSession) {
             .invokeOnCompletion { scope.cancel() }
     }
 
+    /** Points the relay at the experimental WebSocket tunnel when forced or away from home; any failure keeps the original relay. */
+    private suspend fun routeThroughTunnel(servers: List<RtcIceServer>): List<RtcIceServer> {
+        val source = tunnelSource ?: return servers
+        val relay = servers.firstOrNull() ?: return servers
+        val base = source.serverBaseUrl()
+        val url = turnSocketUrl(base) ?: return servers
+        val host = serverHost(base)
+        val atHome = if (host == null || experiments.cameraOverWebSocket) null else homeCheck(host)
+        if (!shouldTunnelTurn(atHome, experiments.cameraOverWebSocket)) return servers
+        return try {
+            val t = TurnTunnel(url, { turnSocketHeaders(source.creds(), currentEpochSeconds(), defaultNonce()) }, scope)
+            val port = t.start()
+            tunnel = t
+            println("[VacLocal] TURN tunnel (experimental) on 127.0.0.1:$port via $url")
+            listOf(tunnelledIceServer(relay, port)) + servers.drop(1)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            println("[VacLocal] TURN tunnel (experimental) unavailable, using the direct relay: ${e.message}")
+            servers
+        }
+    }
+
     private fun closePeer() {
+        tunnel?.close()
+        tunnel = null
         _peer.value?.close()
         _peer.value = null
     }
@@ -295,7 +335,7 @@ class CameraLiveSession(private val session: VacuumSession) {
             if (attempt < TURN_ATTEMPTS) delay(TURN_RETRY_MS)
         }
 
-        val peer = createRtcPeer(iceServers, experiments)
+        val peer = createRtcPeer(routeThroughTunnel(iceServers), experiments)
         _peer.value = peer
 
         coroutineScope {
