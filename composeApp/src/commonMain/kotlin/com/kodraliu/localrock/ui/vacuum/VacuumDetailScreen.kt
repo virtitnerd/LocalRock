@@ -166,6 +166,7 @@ import com.kodraliu.localrock.shared.vacuum.WaterBoxMode
 import com.kodraliu.localrock.shared.vacuum.isCustomizeModeSet
 import com.kodraliu.localrock.shared.vacuum.isSmartModeSet
 import com.kodraliu.localrock.shared.vacuum.mapNameBlocker
+import com.kodraliu.localrock.shared.vacuum.modelSubtitle
 import com.kodraliu.localrock.shared.vacuum.roomCleanModesFor
 import com.kodraliu.localrock.shared.vacuum.washFrequencyLabel
 import com.kodraliu.localrock.shared.vacuum.map.ParsedMap
@@ -531,7 +532,14 @@ fun VacuumDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(viewModel.deviceName, style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Column {
+                        Text(viewModel.deviceName, style = MaterialTheme.typography.titleLarge)
+                        modelSubtitle(viewModel.deviceName, viewModel.modelDisplayName)?.let {
+                            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back")

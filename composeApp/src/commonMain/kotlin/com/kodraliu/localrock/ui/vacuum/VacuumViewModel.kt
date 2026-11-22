@@ -15,6 +15,7 @@ import com.kodraliu.localrock.shared.vacuum.VacuumErrorCodes
 import com.kodraliu.localrock.shared.vacuum.VacuumRepository
 import com.kodraliu.localrock.shared.vacuum.isSmartPlanSupported
 import com.kodraliu.localrock.shared.vacuum.isWaterSlideSupported
+import com.kodraliu.localrock.shared.vacuum.productDisplayName
 import com.kodraliu.localrock.shared.vacuum.showsBetaPage
 import com.kodraliu.localrock.shared.vacuum.supportedBetaFeatures
 import com.kodraliu.localrock.shared.vacuum.unlistedAdvertisedFeatures
@@ -42,6 +43,7 @@ class VacuumViewModel(
 
     val deviceName: String = device.name
     val modelName: String? = container.deviceRepository.productsByDuid.value[duid]?.model
+    val modelDisplayName: String? = productDisplayName(container.deviceRepository.productsByDuid.value[duid])
     val firmwareVersion: String? = device.fv
     private val serverFeatureSet = device.newFeatureSet
     private val serverFeatureInfo = device.featureSet
